@@ -3,28 +3,42 @@ const http = require('http');
 const url = require('url');
 const transaqConnectorModule = require('./modules_in_project/finam/transaqConnector.js');
 const functions = require('./modules_in_project/common_sevice_functions/functions.js');
+const xml2json = require('xml2json');
+const fs = require('fs');
 // различные функции
 let workHereOrInTransaqConnector = true;
-const arrayOneWorldCommands = [
-    'server_status',
-    'get_securities',
-];
+const arrayOneWorldCommands = ['server_status', 'get_securities'];
 const arrayAnyWorldCommands = [
-    'gethistorydata',
-    'get_portfolio',
-    'get_forts_positions',
-    'neworder',
-    'newstoporder',
-    'newcondorder',
-    'cancelstoporder',
-    'cancelorder',
+  'gethistorydata',
+  'get_portfolio',
+  'get_forts_positions',
+  'neworder',
+  'newstoporder',
+  'newcondorder',
+  'cancelstoporder',
+  'cancelorder',
+  'change_pass',
 ];
+const config = require('./config.json');
 // #endregion
 
 // #region веб сервер
-http.createServer(null, (req, res) => {
+
+const recieveBody = (req) =>
+  new Promise((resolve, reject) => {
+    const buffers = [];
+    req.on('data', (chunk) => {
+      buffers.push(chunk);
+    });
+    req.on('end', () => {
+      resolve(Buffer.concat(buffers).toString());
+    });
+  });
+
+http
+  .createServer(null, async (req, res) => {
     try {
-        /*
+      /*
          server_status
              http://127.0.0.1:12345/?command=server_status&HftOrNot=NotHft
              http://127.0.0.1:12345/?command=server_status&HftOrNot=Hft
@@ -62,72 +76,130 @@ http.createServer(null, (req, res) => {
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=Hft
         * */
-        const urlParts = url.parse(req.url, true);
-        const queryObject = urlParts.query;
-        if (functions.functionEmptyOnlyObject(queryObject) === false) {
-            /** @var queryObject.command string */
-            /** @var queryObject.HftOrNot string */
-            const { command } = queryObject;
-            const { HftOrNot } = queryObject;
-            const clientId = transaqConnectorModule.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
-            if (command !== undefined) {
-                let result = '';
-                // простая команда
-                if (arrayOneWorldCommands.includes(command) === true) {
-                    result = transaqConnectorModule.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
-                        `<command id="${ command }"/>`,
-                    );
-                } else
-                if (arrayAnyWorldCommands.includes(command) === true) {
-                    if (command === 'gethistorydata') {
-                        result = transaqConnectorModule.functionGetHistory(queryObject);
-                    } else
-                    if (command === 'get_portfolio') {
-                        result = transaqConnectorModule.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
-                            `<command id="${ command }" client="${ clientId }"/>`,
-                        );
-                    } else
-                    if (command === 'get_forts_positions') {
-                        result = transaqConnectorModule.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
-                            `<command id="${ command }" client="${ clientId }"/>`,
-                        );
-                    } else
-                    if (
-                        command === 'neworder' ||
-                        command === 'newstoporder' ||
-                        command === 'newcondorder'
-                    ) {
-                        result = transaqConnectorModule.functionSendOrderToBirga(queryObject);
-                    } else
-                    if (
-                        command === 'cancelorder' ||
-                        command === 'cancelstoporder'
-                    ) {
-                        result = transaqConnectorModule.functionCancelOrder(queryObject);
-                    }
-                }
 
-                // если ответ = false, вывести ответ и завершить работу веб сервера
-                res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-                res.write(`${' Ответ на отправку команды' + '<br>\r\n'}${
-                    command.replace(/</g, '&#706;').replace(/>/g, '&#707;') }<br>\r\n` +
-                    ' = ' + `<br>\r\n${
-                    result.replace(/</g, '&#706;').replace(/>/g, '&#707;') }.` + '<br>\r\n');
-                if (result.indexOf('false') > -1) {
-                    res.end();
-                }
-                // иначе экспортировать переменные, завершение вывода ответа и завершение работы веб сервера будет в transaqConnector.js
-                else {
-                    workHereOrInTransaqConnector = false;
-                    module.exports.workHereOrInTransaqConnector = workHereOrInTransaqConnector;
-                    module.exports.commandText = command;
-                }
-            }
+      res.setHeader('Access-Control-Allow-Origin', '*');
+
+      console.log('New request');
+
+      if (req.method != 'POST') {
+        return res.end('method must be POST');
+      }
+
+      const body = await recieveBody(req);
+      const { login, password } = JSON.parse(body);
+      const urlParts = url.parse(req.url, true);
+      const queryObject = urlParts.query;
+      if (functions.functionEmptyOnlyObject(queryObject) === false) {
+        /** @var queryObject.command string */
+        /** @var queryObject.HftOrNot string */
+        const { command } = queryObject;
+        const { HftOrNot } = queryObject;
+        const Account = config.users[HftOrNot].Account;
+        if (login !== Account.login || password !== Account.password) {
+          res.statusCode = 401;
+          console.log('Wrong login or password');
+          return res.end(
+            JSON.stringify({ error: true, message: 'Wrong login or password' })
+          );
         }
 
-        module.exports.res = res;
+        const clientId =
+          transaqConnectorModule.objectAccountsAndDll.users[HftOrNot].Account
+            .clientId_1;
+        if (command !== undefined) {
+          let result = '';
+          // простая команда
+          if (command == 'auth') {
+            return res.end(
+              JSON.stringify({
+                error: false,
+                message: 'Logged in successfully',
+              })
+            );
+          }
+          if (arrayOneWorldCommands.includes(command) === true) {
+            result = transaqConnectorModule.objectAccountsAndDll[
+              'afterInitialize'
+            ][HftOrNot].SendCommand(`<command id="${command}"/>`);
+          } else if (arrayAnyWorldCommands.includes(command) === true) {
+            if (command === 'change_pass') {
+              if (!queryObject.oldpass || !queryObject.newpass) {
+                return res.end(
+                  JSON.stringify({
+                    error: true,
+                    message: 'oldpass and newpass are required',
+                  })
+                );
+              }
+              if (queryObject.oldpass != Account.password)
+                return res.end(
+                  JSON.stringify({
+                    error: true,
+                    message: 'Wrong oldpass',
+                  })
+                );
+              console.log(':change_pass');
+              result = transaqConnectorModule.objectAccountsAndDll[
+                'afterInitialize'
+              ][HftOrNot].SendCommand(
+                `<command id="change_pass" oldpass=${queryObject.oldpass} newpass="${queryObject.newpass}"/>`
+              );
+              result = xml2json.toJson(result);
+              Account.password = queryObject.newpass;
+              fs.writeFileSync('./config.json', JSON.stringify(config));
+              console.log('END change_pass');
+            } else if (command === 'gethistorydata') {
+              result = transaqConnectorModule.functionGetHistory(queryObject);
+            } else if (command === 'get_portfolio') {
+              result = transaqConnectorModule.objectAccountsAndDll[
+                'afterInitialize'
+              ][HftOrNot].SendCommand(
+                `<command id="${command}" client="${clientId}"/>`
+              );
+            } else if (command === 'get_forts_positions') {
+              result = transaqConnectorModule.objectAccountsAndDll[
+                'afterInitialize'
+              ][HftOrNot].SendCommand(
+                `<command id="${command}" client="${clientId}"/>`
+              );
+            } else if (
+              command === 'neworder' ||
+              command === 'newstoporder' ||
+              command === 'newcondorder'
+            ) {
+              result =
+                transaqConnectorModule.functionSendOrderToBirga(queryObject);
+            } else if (
+              command === 'cancelorder' ||
+              command === 'cancelstoporder'
+            ) {
+              result = transaqConnectorModule.functionCancelOrder(queryObject);
+            }
+          }
+          console.log('ENDDD');
+          // если о твет = false, вывести ответ и завершить работу веб сервера
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+          res.write(
+            JSON.stringify({ error: false, message: JSON.parse(result) })
+          );
+
+          if (result.indexOf('true') > -1) {
+            res.end();
+          }
+          // иначе экспортировать переменные, завершение вывода ответа и завершение работы веб сервера будет в transaqConnector.js
+          else {
+            workHereOrInTransaqConnector = false;
+            module.exports.workHereOrInTransaqConnector =
+              workHereOrInTransaqConnector;
+            module.exports.commandText = command;
+          }
+        }
+      }
+
+      module.exports.res = res;
     } catch (e) {
-        console.log(e);
+      console.log(e);
     }
-}).listen(12345);
+  })
+  .listen(12345);
 // #endregion
