@@ -2,12 +2,16 @@
   "users": {
     "Hft": { "Account": { "login": "", "password": "", "clientId_1": "" } },
     "NotHft": {
-      "Account": { "login": "", "password": "", "clientId_1": "" }
+      "Account": {
+        "login": "",
+        "password": "",
+        "clientId_1": ""
+      }
     }
   },
   "servers": {
-    "Hft": { "host": "hft.finam.ru", "port": "13900" },
-    "NotHft": { "host": "tr1.finam.ru", "port": "3900" }
+    "Hft": {},
+    "NotHft": {}
   },
   "dllFiles": {
     "Hft": "./modules_in_project/finam/txcn64.dll",

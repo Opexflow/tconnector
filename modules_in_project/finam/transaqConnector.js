@@ -13,6 +13,11 @@ const arrayUnikStringCloseOpenPositions = []; // массив уникальны
 // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
 // #endregion
 
+const isTransaqConnected = {
+  Hft: false,
+  NoHft: false,
+};
+
 // #region параметры подключения
 const board = 'FUT';
 // #region объект с логинами, паролями, dll файлами hft и НЕ hft, объектами dll
@@ -474,8 +479,22 @@ const functionCallbackNotHft = ffi.Callback(
  *
  * @return null
  * */
-function functionConnect(HftOrNot) {
+function functionConnect(HftOrNot, callback) {
   // noinspection JSUnusedLocalSymbols
+
+  const ffiCallback = ffi.Callback(
+    ref.types.bool,
+    [ref.refType(ref.types.CString)],
+    (msg) => {
+      callback(ref.readCString(msg, 0), HftOrNot);
+      functionCallback(msg, HftOrNot);
+      if (msg !== undefined) {
+        objectAccountsAndDll['afterInitialize'][HftOrNot].FreeMemory(msg);
+      }
+      return null;
+    }
+  );
+
   const promise = new Promise((resolve, reject) => {
     resolve(
       // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
@@ -488,14 +507,15 @@ function functionConnect(HftOrNot) {
   promise
     .then((init) => {
       // разные callback в зависимости от HftOrNot
+
       if (HftOrNot === 'Hft') {
         return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(
-          functionCallbackHft
+          ffiCallback
         );
       }
       if (HftOrNot === 'NotHft') {
         return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(
-          functionCallbackNotHft
+          ffiCallback
         );
       }
       console.log(`Promise ${HftOrNot} init ${init}`);
@@ -533,10 +553,11 @@ function functionConnect(HftOrNot) {
   return null;
 }
 // подключение Hft и НЕ Hft в цикле
-Object.keys(typesUsersArray).forEach((number) => {
-  const HftOrNot = typesUsersArray[number];
-  functionConnect(HftOrNot);
-});
+// Object.keys(typesUsersArray).forEach((number) => {
+//   const HftOrNot = typesUsersArray[number];
+//   console.log(HftOrNot);
+//   functionConnect(HftOrNot);
+// });
 // #endregion
 
 // #region подписка\отписка
@@ -1258,8 +1279,12 @@ function functionActiveContractString() {
 // #endregion
 
 // #region module.exports
-module.exports.objectAccountsAndDll = objectAccountsAndDll;
-module.exports.functionGetHistory = functionGetHistory;
-module.exports.functionSendOrderToBirga = functionSendOrderToBirga;
-module.exports.functionCancelOrder = functionCancelOrder;
+module.exports = {
+  objectAccountsAndDll,
+  functionGetHistory,
+  functionSendOrderToBirga,
+  functionCancelOrder,
+  functionConnect,
+  isTransaqConnected,
+};
 // #endregion

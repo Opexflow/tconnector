@@ -1,10 +1,9 @@
 // #region переменные
 const http = require('http');
 const url = require('url');
-const transaqConnectorModule = require('./modules_in_project/finam/transaqConnector.js');
+const transaqConnector = require('./modules_in_project/finam/transaqConnector.js');
 const functions = require('./modules_in_project/common_sevice_functions/functions.js');
 const xml2json = require('xml2json');
-const fs = require('fs');
 // различные функции
 let workHereOrInTransaqConnector = true;
 const arrayOneWorldCommands = ['server_status', 'get_securities'];
@@ -19,25 +18,21 @@ const arrayAnyWorldCommands = [
   'cancelorder',
   'change_pass',
 ];
-const config = require('./config.json');
 // #endregion
 
 // #region веб сервер
 
-const recieveBody = (req) =>
-  new Promise((resolve, reject) => {
-    const buffers = [];
-    req.on('data', (chunk) => {
-      buffers.push(chunk);
-    });
-    req.on('end', () => {
-      resolve(Buffer.concat(buffers).toString());
-    });
-  });
-
 http
   .createServer(null, async (req, res) => {
     try {
+      const clientIp = req.socket.remoteAddress.split(':').slice('-1')[0];
+      if (clientIp !== '127.0.0.1')
+        return res.end(
+          JSON.stringify({
+            error: true,
+            message: 'Non localhost requests is not avaible',
+          })
+        );
       /*
          server_status
              http://127.0.0.1:12345/?command=server_status&HftOrNot=NotHft
@@ -81,12 +76,6 @@ http
 
       console.log('New request');
 
-      if (req.method != 'POST') {
-        return res.end('method must be POST');
-      }
-
-      const body = await recieveBody(req);
-      const { login, password } = JSON.parse(body);
       const urlParts = url.parse(req.url, true);
       const queryObject = urlParts.query;
       if (functions.functionEmptyOnlyObject(queryObject) === false) {
@@ -94,33 +83,51 @@ http
         /** @var queryObject.HftOrNot string */
         const { command } = queryObject;
         const { HftOrNot } = queryObject;
-        const Account = config.users[HftOrNot].Account;
-        if (login !== Account.login || password !== Account.password) {
-          res.statusCode = 401;
-          console.log('Wrong login or password');
-          return res.end(
-            JSON.stringify({ error: true, message: 'Wrong login or password' })
-          );
-        }
 
         const clientId =
-          transaqConnectorModule.objectAccountsAndDll.users[HftOrNot].Account
+          transaqConnector.objectAccountsAndDll.users[HftOrNot].Account
             .clientId_1;
         if (command !== undefined) {
           let result = '';
           // простая команда
-          if (command == 'auth') {
-            return res.end(
-              JSON.stringify({
-                error: false,
-                message: 'Logged in successfully',
-              })
-            );
-          }
-          if (arrayOneWorldCommands.includes(command) === true) {
-            result = transaqConnectorModule.objectAccountsAndDll[
-              'afterInitialize'
-            ][HftOrNot].SendCommand(`<command id="${command}"/>`);
+          if (command == 'connect') {
+            if (transaqConnector.isTransaqConnected[HftOrNot]) {
+              result = transaqConnector.objectAccountsAndDll['afterInitialize'][
+                HftOrNot
+              ].SendCommand('<command id="disconnect"/>');
+            } else transaqConnector.isTransaqConnected[HftOrNot] = true;
+            const { login, password, host, port } = queryObject;
+            transaqConnector.objectAccountsAndDll.users[HftOrNot] = {
+              Account: {
+                login,
+                password,
+                clientId_1: '',
+              },
+            };
+
+            transaqConnector.objectAccountsAndDll.servers[HftOrNot] = {
+              host,
+              port,
+            };
+            return transaqConnector.functionConnect(HftOrNot, (data) => {
+              const message = JSON.parse(xml2json.toJson(data));
+              if (message['server_status']) {
+                if (message['server_status']['connected'] === 'error') {
+                  res.end(
+                    JSON.stringify({
+                      error: true,
+                      message: 'Wrong login or password',
+                    })
+                  );
+                } else if (message['server_status']['connected'] === 'true') {
+                  res.end(JSON.stringify({ error: false }));
+                }
+              }
+            });
+          } else if (arrayOneWorldCommands.includes(command) === true) {
+            result = transaqConnector.objectAccountsAndDll['afterInitialize'][
+              HftOrNot
+            ].SendCommand(`<command id="${command}"/>`);
           } else if (arrayAnyWorldCommands.includes(command) === true) {
             if (command === 'change_pass') {
               if (!queryObject.oldpass || !queryObject.newpass) {
@@ -131,58 +138,51 @@ http
                   })
                 );
               }
-              if (queryObject.oldpass != Account.password)
-                return res.end(
-                  JSON.stringify({
-                    error: true,
-                    message: 'Wrong oldpass',
-                  })
-                );
               console.log(':change_pass');
-              result = transaqConnectorModule.objectAccountsAndDll[
-                'afterInitialize'
-              ][HftOrNot].SendCommand(
-                `<command id="change_pass" oldpass=${queryObject.oldpass} newpass="${queryObject.newpass}"/>`
+              console.log({ queryObject });
+              result = transaqConnector.objectAccountsAndDll['afterInitialize'][
+                HftOrNot
+              ].SendCommand(
+                `<command id="change_pass" oldpass="${queryObject.oldpass}" newpass="${queryObject.newpass}"/>`
               );
-              result = xml2json.toJson(result);
-              Account.password = queryObject.newpass;
-              fs.writeFileSync('./config.json', JSON.stringify(config));
+              result = JSON.parse(xml2json.toJson(result));
+              console.log(result);
+              return res.end(
+                JSON.stringify({
+                  error: !result.success,
+                  message: result.message,
+                })
+              );
+
+              //Account.password = queryObject.newpass;
               console.log('END change_pass');
             } else if (command === 'gethistorydata') {
-              result = transaqConnectorModule.functionGetHistory(queryObject);
+              result = transaqConnector.functionGetHistory(queryObject);
             } else if (command === 'get_portfolio') {
-              result = transaqConnectorModule.objectAccountsAndDll[
-                'afterInitialize'
-              ][HftOrNot].SendCommand(
-                `<command id="${command}" client="${clientId}"/>`
-              );
+              result = transaqConnector.objectAccountsAndDll['afterInitialize'][
+                HftOrNot
+              ].SendCommand(`<command id="${command}" client="${clientId}"/>`);
             } else if (command === 'get_forts_positions') {
-              result = transaqConnectorModule.objectAccountsAndDll[
-                'afterInitialize'
-              ][HftOrNot].SendCommand(
-                `<command id="${command}" client="${clientId}"/>`
-              );
+              result = transaqConnector.objectAccountsAndDll['afterInitialize'][
+                HftOrNot
+              ].SendCommand(`<command id="${command}" client="${clientId}"/>`);
             } else if (
               command === 'neworder' ||
               command === 'newstoporder' ||
               command === 'newcondorder'
             ) {
-              result =
-                transaqConnectorModule.functionSendOrderToBirga(queryObject);
+              result = transaqConnector.functionSendOrderToBirga(queryObject);
             } else if (
               command === 'cancelorder' ||
               command === 'cancelstoporder'
             ) {
-              result = transaqConnectorModule.functionCancelOrder(queryObject);
+              result = transaqConnector.functionCancelOrder(queryObject);
             }
           }
-          console.log('ENDDD');
+
           // если о твет = false, вывести ответ и завершить работу веб сервера
           res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-          res.write(
-            JSON.stringify({ error: false, message: JSON.parse(result) })
-          );
-
+          result.write(JSON.stringify({ error: false, message: result }));
           if (result.indexOf('true') > -1) {
             res.end();
           }
