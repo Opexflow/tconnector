@@ -182,7 +182,7 @@ http
 
           // если о твет = false, вывести ответ и завершить работу веб сервера
           res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-          result.write(JSON.stringify({ error: false, message: result }));
+          res.write(JSON.stringify({ error: false, message: result }));
           if (result.indexOf('true') > -1) {
             res.end();
           }
