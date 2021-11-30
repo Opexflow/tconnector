@@ -26,13 +26,13 @@ http
   .createServer(null, async (req, res) => {
     try {
       const clientIp = req.socket.remoteAddress.split(':').slice('-1')[0];
-      if (clientIp !== '127.0.0.1')
-        return res.end(
-          JSON.stringify({
-            error: true,
-            message: 'Non localhost requests is not avaible',
-          })
-        );
+      // if (clientIp !== '127.0.0.1')
+      //   return res.end(
+      //     JSON.stringify({
+      //       error: true,
+      //       message: 'Non localhost requests is not avaible',
+      //     })
+      //   );
       /*
          server_status
              http://127.0.0.1:12345/?command=server_status&HftOrNot=NotHft
@@ -182,7 +182,7 @@ http
 
           // если о твет = false, вывести ответ и завершить работу веб сервера
           res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-          result.write(JSON.stringify({ error: false, message: result }));
+          res.write(JSON.stringify({ error: false, message: result }));
           if (result.indexOf('true') > -1) {
             res.end();
           }

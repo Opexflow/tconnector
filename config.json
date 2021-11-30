@@ -1,18 +1,4 @@
 {
-  "users": {
-    "Hft": { "Account": { "login": "", "password": "", "clientId_1": "" } },
-    "NotHft": {
-      "Account": {
-        "login": "",
-        "password": "",
-        "clientId_1": ""
-      }
-    }
-  },
-  "servers": {
-    "Hft": {},
-    "NotHft": {}
-  },
   "dllFiles": {
     "Hft": "./modules_in_project/finam/txcn64.dll",
     "NotHft": "./modules_in_project/finam/txmlconnector64.dll"

@@ -22,9 +22,21 @@ const isTransaqConnected = {
 const board = 'FUT';
 // #region объект с логинами, паролями, dll файлами hft и НЕ hft, объектами dll
 const objectAccountsAndDll = {
-  users: config.users,
+  users: {
+    Hft: { Account: { login: '', password: '', clientId_1: '' } },
+    NotHft: {
+      Account: {
+        login: '',
+        password: '',
+        clientId_1: '',
+      },
+    },
+  },
   dllFiles: config.dllFiles,
-  servers: config.servers,
+  servers: {
+    Hft: {},
+    NotHft: {},
+  },
   afterInitialize: {
     Hft: {},
     NotHft: {},
