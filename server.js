@@ -25,14 +25,14 @@ const arrayAnyWorldCommands = [
 http
   .createServer(null, async (req, res) => {
     try {
-      const clientIp = req.socket.remoteAddress.split(':').slice('-1')[0];
-      if (clientIp !== '127.0.0.1')
-        return res.end(
-           JSON.stringify({
-             error: true,
-             message: 'Non localhost requests is not avaible',
-           })
-         );
+      //   const clientIp = req.socket.remoteAddress.split(':').slice('-1')[0];
+      //   if (clientIp !== '127.0.0.1')
+      //     return res.end(
+      //       JSON.stringify({
+      //         error: true,
+      //         message: 'Non localhost requests is not avaible',
+      //       })
+      //     );
       /*
          server_status
              http://127.0.0.1:12345/?command=server_status&HftOrNot=NotHft
@@ -73,8 +73,6 @@ http
         * */
 
       res.setHeader('Access-Control-Allow-Origin', '*');
-
-      console.log('New request');
 
       const urlParts = url.parse(req.url, true);
       const queryObject = urlParts.query;
@@ -138,24 +136,18 @@ http
                   })
                 );
               }
-              console.log(':change_pass');
-              console.log({ queryObject });
               result = transaqConnector.objectAccountsAndDll['afterInitialize'][
                 HftOrNot
               ].SendCommand(
                 `<command id="change_pass" oldpass="${queryObject.oldpass}" newpass="${queryObject.newpass}"/>`
               );
-              result = JSON.parse(xml2json.toJson(result));
-              console.log(result);
+              result = JSON.parse(xml2json.toJson(result)).result;
               return res.end(
                 JSON.stringify({
-                  error: !result.success,
+                  error: result.success !== 'true',
                   message: result.message,
                 })
               );
-
-              //Account.password = queryObject.newpass;
-              console.log('END change_pass');
             } else if (command === 'gethistorydata') {
               result = transaqConnector.functionGetHistory(queryObject);
             } else if (command === 'get_portfolio') {

@@ -1,6 +1,6 @@
 // #region переменные
-const ffi = require('ffi');
-const ref = require('ref');
+const ffi = require('@saleae/ffi');
+const ref = require('@saleae/ref');
 const xml2json = require('xml2json');
 const fs = require('fs');
 const finamClass = require('./FinamClass.js');
