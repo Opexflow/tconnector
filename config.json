@@ -1,0 +1,6 @@
+{
+  "dllFiles": {
+    "Hft": "./modules_in_project/finam/txcn64.dll",
+    "NotHft": "./modules_in_project/finam/txmlconnector64.dll"
+  }
+}
