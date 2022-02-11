@@ -109,6 +109,7 @@ http
             };
             return transaqConnector.functionConnect(HftOrNot, (data) => {
               const message = JSON.parse(xml2json.toJson(data));
+              console.log(message);
               if (message['server_status']) {
                 if (message['server_status']['connected'] === 'error') {
                   res.end(

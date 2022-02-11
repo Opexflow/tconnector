@@ -1,5 +1,5 @@
 # tconnector
 
 Prerequisites
-
-- Node.js 12.24.7
+* Windows x64
+* Node.js 12.22.10
