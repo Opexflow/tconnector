@@ -82,8 +82,6 @@ http
         const { command } = queryObject;
         const { HftOrNot } = queryObject;
 
-        // console.log(command);
-
         const clientId =
           transaqConnector.objectAccountsAndDll.users[HftOrNot].Account
             .clientId_1;
@@ -111,7 +109,6 @@ http
             };
             return transaqConnector.functionConnect(HftOrNot, (data) => {
               const message = JSON.parse(xml2json.toJson(data));
-              // console.log(message);
               if (message['server_status']) {
                 if (message['server_status']['connected'] === 'error') {
                   res.end(
@@ -147,8 +144,8 @@ http
               result = JSON.parse(xml2json.toJson(result)).result;
               return res.end(
                 JSON.stringify({
-                  error: result && result.success !== 'true',
-                  message: result && result.message,
+                  error: result.success !== 'true',
+                  message: result.message,
                 })
               );
             } else if (command === 'gethistorydata') {
