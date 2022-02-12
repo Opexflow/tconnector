@@ -23,7 +23,7 @@ function functionEmptyOnlyObject(obj) {
  *
  * */
 function getBool(val) {
-    return !!JSON.parse(String(val).toLowerCase());
+    return Boolean(JSON.parse(String(val).toLowerCase()));
 }
 
 // #region строка контракта
@@ -108,10 +108,12 @@ function functionContractString(
 
     return contrakt + contractsLetter + lastNumberInYear;
 }
+
 // #endregion
 
 // #region module.exports
 module.exports.functionEmptyOnlyObject = functionEmptyOnlyObject;
 module.exports.getBool = getBool;
 module.exports.functionContractString = functionContractString;
+
 // #endregion

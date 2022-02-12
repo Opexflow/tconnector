@@ -26,6 +26,7 @@ try {
             const asks = [];
             Object.keys(snapshot.quotes.quote).forEach(numberInSnapshot => {
                 const priceUpdate = Number(snapshot.quotes.quote[numberInSnapshot]['price']);
+
                 // в snapshot попадают количества -1, по документации такие поля должны быть удалены
                 if (snapshot.quotes.quote[numberInSnapshot]['buy'] !== undefined) {
                     amountUpdateBid = Number(snapshot.quotes.quote[numberInSnapshot]['buy']);
@@ -40,6 +41,7 @@ try {
                     }
                 }
             });
+
             // сохранение snapshot-а стакана, массив bids сохранняется в обратном порядке, не переделываю его, кодом ниже беру нужные значения и возвращаю не сохраненный snapshot, а с нужными значениями
             // quotes.quote. - приходит от биржи, делаю аналог для сохранения snapshot
             this.finamGlass[pairName] = {
@@ -72,15 +74,19 @@ try {
                 },
                 '1': this.finamGlass[pairName],
             };
+
             // #endregion
         }
+
         // #endregion
 
         // #region обновление стакана
         functionUpdateGlass(pairName, updateGlass) {
             let savedGlass = this.getGlass(pairName);
+
             // стакан обновляет общая функция обработки стакана
             savedGlass = this.functionCommonWorkOnGlass(savedGlass, updateGlass);
+
             // обновить сохраненное
             this.finamGlass[pairName] = savedGlass;
 
@@ -105,8 +111,10 @@ try {
                 },
                 '1': this.finamGlass[pairName],
             };
+
             // #endregion
         }
+
         // #endregion
 
         // #region общая функция обработки стакана
@@ -143,6 +151,7 @@ try {
 
             return savedGlass;
         }
+
         // #endregion
 
         // полученние открытых ордеров
@@ -183,6 +192,7 @@ try {
     }
 
     const finamClass = new FinamClass();
+
     // #endregion
 
     // #region обработка поступающего стакана
@@ -203,11 +213,14 @@ try {
             if (glass.quotes.quote['0'] === undefined) {
                 glass.quotes.quote['0'] = glass.quotes.quote;
             }
+
             /** @var glass.quotes.quote.seccode string */
             const commonPairName = glass.quotes.quote['0'].seccode;
+
             // первым приходит snapshot, его сохраняю целиком
             if (isSnapshot === true) {
                 isSnapshot = false;
+
                 // сохранить snapshot стакана
                 const glassSnapshot = finamClass.setSnapshot(commonPairName, glass);
 
@@ -223,10 +236,12 @@ try {
                 // #endregion
             }
         }
+
         // #endregion
 
         return null;
     }
+
     // #endregion
 
     // #region заполнение массивов открытых заявок
@@ -245,6 +260,7 @@ try {
     ) {
         // массив заявок уже есть
         const checkEmpty = functions.functionEmptyOnlyObject(openOrdersObject[type]);
+
         // Это на случай, если tempArray - один объект из одной транзакции
         if (
             typeof (tempArray) === 'object' &&
@@ -254,15 +270,18 @@ try {
             tempArray = [];
             tempArray['0'] = saveTemp;
         }
+
         // true - массив - пустой, false - не пустой
         if (checkEmpty === false) {
             // есть ли поле новой транзакции в массиве
             for (const numberTemp in tempArray) {
                 let isFieldExists = false;
+
                 /** @var tempArray.transactionid string */
                 const transactionIdTemp = tempArray[numberTemp].transactionid;
                 Object.keys(openOrdersObject[type]).forEach(number => {
                     const transactionId = openOrdersObject[type][number].transactionid;
+
                     // если транзакция есть в массиве, то не добавлять ее, а изменить статус
                     if (transactionIdTemp === transactionId) {
                         // есть ли поле транзакции в массиве
@@ -272,6 +291,7 @@ try {
                         console.log(`status ${ statusOld } ${ transactionId } изменен на ${ tempArray[numberTemp].status}`);
                     }
                 });
+
                 // добавление заявки в массив заявок
                 if (isFieldExists === false) {
                     openOrdersObject[type].push(tempArray[numberTemp]);
@@ -284,6 +304,7 @@ try {
 
         return openOrdersObject;
     }
+
     // #endregion
 
     // #region module.exports
@@ -295,6 +316,7 @@ try {
     module.exports.saveMaxPrices = finamClass.saveMaxPrices;
     module.exports.updateMaxPrices = finamClass.updateMaxPrices;
     module.exports.fillOpenOrdersObject = fillOpenOrdersObject;
+
     // #endregion
 } catch (e) {
     const err = `${e.name }:${ e.message }\n${ e.stack}`;

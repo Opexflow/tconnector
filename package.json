@@ -8,14 +8,14 @@
     "node": "12.22.10"
   },
   "scripts": {
-    "lint": "eslint ."
+    "start": "node server.js",
+    "lint": "npx eslint . --fix"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Opexflow/tconnector.git"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "pskucherov",
   "gypfile": true,
   "bugs": {
     "url": "https://github.com/Opexflow/tconnector/issues"
@@ -24,12 +24,13 @@
   "dependencies": {
     "@saleae/ffi": "^3.0.2",
     "@saleae/ref": "^2.0.1",
+    "eslint-config-airbnb": "^19.0.4",
     "xml2json": "^0.12.0"
   },
   "devDependencies": {
-    "eslint": "^8.2.0",
+    "eslint": "^8.9.0",
     "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.25.3",
+    "eslint-plugin-import": "^2.25.4",
     "eslint-plugin-no-loops": "^0.3.0",
     "eslint-plugin-no-use-extend-native": "^0.5.0",
     "eslint-plugin-optimize-regex": "^1.2.1",
