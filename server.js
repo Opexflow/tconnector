@@ -11,6 +11,7 @@ const arrayOneWorldCommands = ['server_status', 'get_securities'];
 const arrayAnyWorldCommands = [
     'gethistorydata',
     'get_portfolio',
+    'get_mc_portfolio',
     'get_forts_positions',
     'neworder',
     'newstoporder',
@@ -81,7 +82,7 @@ http
             if (functions.functionEmptyOnlyObject(queryObject) === false) {
                 /** @var queryObject.command string */
                 /** @var queryObject.HftOrNot string */
-                const { command } = queryObject;
+                let { command } = queryObject;
                 const { HftOrNot } = queryObject;
 
                 const clientId =
@@ -91,15 +92,21 @@ http
                     let result = '';
 
                     // простая команда
-                    if (command == 'connect') {
+                    if (command === 'connect') {
                         if (transaqConnector.isTransaqConnected[HftOrNot]) {
                             result = transaqConnector.objectAccountsAndDll['afterInitialize'][
                                 HftOrNot
                             ].SendCommand('<command id="disconnect"/>');
-                        } else transaqConnector.isTransaqConnected[HftOrNot] = true;
+                        } else {
+                            transaqConnector.isTransaqConnected[HftOrNot] = true;
+                        }
+
                         const {
                             login, password, host, port,
                         } = queryObject;
+
+                        console.log(queryObject);
+
                         transaqConnector.objectAccountsAndDll.users[HftOrNot] = {
                             Account: {
                                 login,
@@ -114,9 +121,31 @@ http
                         };
                         return transaqConnector.functionConnect(HftOrNot, data => {
                             const message = JSON.parse(xml2json.toJson(data));
-                            console.log(message);
+
+                            if (!message) {
+                                return;
+                            }
+
+                            if (!message.sec_info_upd && !message.pits && !message.securities) {
+                                console.log(message);
+                            }
+                            if (message.client && message.client.id) {
+                                transaqConnector.objectAccountsAndDll
+                                    .users[HftOrNot].Account = message.client;
+                                transaqConnector.objectAccountsAndDll
+                                    .users[HftOrNot].Account.clientId_1 = message.client.id;
+                            }
+
+                            if (message.messages && message.messages.message && message.messages.message.text === 'Password expired. Please change the password') {
+                                // TODO: popup about pass expired.
+                                console.log('pass expired');
+                            }
+
                             if (message['server_status']) {
-                                if (message['server_status']['connected'] === 'error') {
+                                if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
+                                    // TODO: popup about connect error and redirect to login page
+                                    console.log('error login');
+
                                     res.end(
                                         JSON.stringify({
                                             error: true,
@@ -124,11 +153,15 @@ http
                                         }),
                                     );
                                 } else if (message['server_status']['connected'] === 'true') {
+                                    // TODO: exit button and disconnect on click.
+                                    console.log('login ok');
                                     res.end(JSON.stringify({ error: false }));
                                 }
                             }
                         });
-                    } if (arrayOneWorldCommands.includes(command) === true) {
+                    }
+
+                    if (arrayOneWorldCommands.includes(command) === true) {
                         result = transaqConnector.objectAccountsAndDll['afterInitialize'][
                             HftOrNot
                         ].SendCommand(`<command id="${command}"/>`);
@@ -154,12 +187,14 @@ http
                                     message: result.message,
                                 }),
                             );
-                        } if (command === 'gethistorydata') {
+                        }
+
+                        if (command === 'gethistorydata') {
                             result = transaqConnector.functionGetHistory(queryObject);
-                        } else if (command === 'get_portfolio') {
+                        } else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
                             result = transaqConnector.objectAccountsAndDll['afterInitialize'][
                                 HftOrNot
-                            ].SendCommand(`<command id="${command}" client="${clientId}"/>`);
+                            ].SendCommand(`<command id="${command}" money="true" client="${clientId}"/>`);
                         } else if (command === 'get_forts_positions') {
                             result = transaqConnector.objectAccountsAndDll['afterInitialize'][
                                 HftOrNot

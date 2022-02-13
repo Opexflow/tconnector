@@ -76,8 +76,8 @@ Object.keys(typesUsersArray).forEach(number => {
 const mainFile = require('../../server.js');
 
 const subscribeOnGlass = {
-    Hft: true,
-    NotHft: true,
+    Hft: false,
+    NotHft: false,
 };
 let getHistoryByTimer = true; // !!
 let openOrdersObject = {
@@ -247,6 +247,8 @@ function functionCallback(msg, HftOrNot) {
                     commandText.indexOf('get_portfolio') > -1 &&
           string.indexOf('portfolio') > -1
                 ) {
+
+                  console.log('portfolio');
                     // возврат
                     // {"portfolio_tplus":{"client":"11B4B/11B4B","coverage_fact":"1000000.00","coverage_plan":"1000000.00","coverage_crit":"1000000.00","open_equity":"7567.15","equity":"7567.15","cover":"7567.15","init_margin":"0.00",
                     // "pnl_income":"0.00","pnl_intraday":"0.00","leverage":"1.00","margin_level":"0.00","money":{"open_balance":"7567.15","bought":"0.00","sold":"0.00","balance":"7567.15","settled":"0.00","tax":"0.00",
@@ -259,6 +261,8 @@ function functionCallback(msg, HftOrNot) {
             ` = <br>\r\n${string
                 .replace(/</g, '&#706;')
                 .replace(/>/g, '&#707;')}<br>\r\n`;
+
+                    console.log(messageLog);
                     debugger;
                     functionCloseWebServer(messageLog, string);
                 }
@@ -291,7 +295,7 @@ function functionCallback(msg, HftOrNot) {
             else if (object.server_status !== undefined) {
                 // vvv проверка обязательна
                 if (object.server_status.connected === 'true') {
-                    if (subscribeOnGlass[HftOrNot] === true) {
+                    if (subscribeOnGlass[HftOrNot]) {
                         console.log(`${HftOrNot} ${string}`);
                         if (HftOrNot === 'Hft') {
                             // команда запроса стакана, чтобы не дублировать, только для Hft
@@ -581,7 +585,7 @@ function functionConnect(HftOrNot, callback) {
         `<host>${objectAccountsAndDll['servers'][HftOrNot].host}</host>` +
         `<port>${objectAccountsAndDll['servers'][HftOrNot].port}</port>` +
         '<language>en</language>' +
-        '<autopos>true</autopos>' +
+        '<autopos>false</autopos>' +
         '<session_timeout>200</session_timeout>' +
         '<request_timeout>20</request_timeout>' +
         '</command>';
