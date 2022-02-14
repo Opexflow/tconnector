@@ -74,93 +74,68 @@ http
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=Hft
         * */
-
             res.setHeader('Access-Control-Allow-Origin', '*');
 
             const urlParts = url.parse(req.url, true);
             const queryObject = urlParts.query;
+            //check if the object is empety or not
             if(Object.keys(queryObject).length !== 0 && queryObject.constructor === Object)
               {
                 /** @var queryObject.command string */
                 /** @var queryObject.HftOrNot string */
                 let { command } = queryObject;
                 const { HftOrNot } = queryObject;
-                const objectAccountsAndDll = {
-                    users: {
-                        Hft: { Account: { login: '', password: '', clientId_1: '' } },
-                        NotHft: {
-                            Account: {
-                                login: '',
-                                password: '',
-                                clientId_1: '',
-                            },
-                        },
-                    },
-                    dllFiles: config.dllFiles,
-                    servers: {
-                        Hft: {},
-                        NotHft: {},
-                    },
-                    afterInitialize: {
-                        Hft: {},
-                        NotHft: {},
-                    },
-                };               
-
-                const clientId =objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
+                const clientId =transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
                 // if there is some command
                 if (command !== undefined) {
                     let result = '';
                     
                     // простая команда
                     if (command === 'connect') {
-                        const isTransaqConnected = {
-                            Hft: false,
-                            NoHft: false,
-                        };
-                        if (isTransaqConnected[HftOrNot]) {
-                            result = objectAccountsAndDll.afterInitialize[ HftOrNot].SendCommand('<command id="disconnect"/>');
+                        if (transaqConnector.isTransaqConnected[HftOrNot]) {
+                            result = objectAccountsAndDll['afterInitialize'][ HftOrNot].SendCommand('<command id="disconnect"/>');
                         } 
                         else {
-                            isTransaqConnected[HftOrNot] = true;
+                            transaqConnector.isTransaqConnected[HftOrNot] = true;
                         }
                         const {login, password, host, port,} = queryObject;
 
                         console.log(queryObject);
-                        objectAccountsAndDll.users[HftOrNot] = {
+                        transaqConnector.objectAccountsAndDll.users[HftOrNot] = {
                             Account: {
                                 login,
                                 password,
                                 clientId_1: '',
                             },
                         };
-                        objectAccountsAndDll.servers[HftOrNot] = {
+                        transaqConnector.objectAccountsAndDll.servers[HftOrNot] = {
                             host,
                             port,
                         };
-                    return transaqConnector.functionConnect(HftOrNot, data => {
+                            return transaqConnector.functionConnect(HftOrNot, data => {
                             const message = JSON.parse(xml2json.toJson(data));
                              //if message and other info exist
-                            if (!message && !message.sec_info_upd && !message.pits && !message.securities) {
-                              console.log(message);
+                             if (!message) {
+                                return;
+                            }
+                            if (!message.sec_info_upd && !message.pits && !message.securities) {
+                                console.log(message);
                             }
                             // set value if they exist
                             transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = !!message.client && !!message.client.id && message.client;
                             transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = !!message.client && !!message.client.id && message.client.id;
                             const incoming_message=message.messages
+                            
                             if (!!incoming_message && !!incoming_message.message && incoming_message.message.text === 'Password expired. Please change the password') {
                                 // TODO: popup about pass expired.
-                          
                                 console.log('pass expired');
                             }
-
                             if (message['server_status']) {
                                 if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
                                     // TODO: popup about connect error and redirect to login page
-                             
                                   // redirect to login page
                                   res.redirect('./login');
-                                    console.log('error login');
+                                  console.log('error login');
                                     res.end(
                                         JSON.stringify({
                                             error: true,
@@ -176,7 +151,7 @@ http
                         });
                     }
                     if (arrayOneWorldCommands.includes(command)) {
-                        result = objectAccountsAndDll.afterInitialize[HftOrNot].SendCommand(`<command id="${command}"/>`);
+                        result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(`<command id="${command}"/>`);
                     } 
                     else if (arrayAnyWorldCommands.includes(command)) 
                     {
@@ -189,7 +164,7 @@ http
                                     }),
                                 );
                             }
-                            result =objectAccountsAndDll.afterInitialize[HftOrNot]
+                            result =transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
                             .SendCommand(`<command id="change_pass" oldpass="${queryObject.oldpass}" newpass="${queryObject.newpass}"/>`,);
                             result = JSON.parse(xml2json.toJson(result)).result;
                             return res.end(
@@ -214,7 +189,14 @@ http
                         {
                             result = transaqConnector.functionSendOrderToBirga(queryObject);
                         } else if (command === 'cancelorder' ||command === 'cancelstoporder') {
-                            result = transaqConnector.functionCancelOrder(queryObject);
+                            const { HftOrNot } = queryObject;
+                            /** @var queryObject.orderId string */
+                            const { orderId, command } = queryObject;
+                            const makeParametrsFromUrl =
+                            `<command id="${command}">` +
+                            `<transactionid>${orderId}</transactionid>` +
+                            '</command>';
+                           result=transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(makeParametrsFromUrl,);
                         }
                     }
 
@@ -233,7 +215,6 @@ http
                     }
                 }
             }
-
             module.exports.res = res;
         } catch (e) {
             console.log(e);

@@ -16,11 +16,36 @@ const arrayUnikStringCloseOpenPositions = []; // массив уникальны
 // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
 // #endregion
 
-
-// #region параметры подключения
-const board = 'FUT';
-
-
+const isTransaqConnected = {
+    Hft: false,
+    NoHft: false,
+  };
+  
+  // #region параметры подключения
+  const board = 'FUT';
+  // #region объект с логинами, паролями, dll файлами hft и НЕ hft, объектами dll
+  const objectAccountsAndDll = {
+    users: {
+      Hft: { Account: { login: '', password: '', clientId_1: '' } },
+      NotHft: {
+        Account: {
+          login: '',
+          password: '',
+          clientId_1: '',
+        },
+      },
+    },
+    dllFiles: config.dllFiles,
+    servers: {
+      Hft: {},
+      NotHft: {},
+    },
+    afterInitialize: {
+      Hft: {},
+      NotHft: {},
+    },
+  };
+  
 // #region функции в dll
 const dllFunctions = {
     Initialize: [ref.types.CString, [ref.types.CString, ref.types.int32]],
@@ -516,7 +541,6 @@ async function functionConnect(HftOrNot, callback) {
             return null;
         },
     );
-
     const promise = new Promise((resolve, reject) => {
         resolve(
             // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
@@ -526,49 +550,41 @@ async function functionConnect(HftOrNot, callback) {
             ),
         );
     });
-
-    promise.then(init => {
-               // разные callback в зависимости от HftOrNo    
+    try{
+ //converting to async await
+    const init=await promise
+    let SetCallback
     if (HftOrNot === 'Hft') {
-        return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
+     SetCallback= await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
     }
     if (HftOrNot === 'NotHft') {
-        return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
+    SetCallback=await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
     }
-    console.log(`Promise ${HftOrNot} init ${init}`);    
-        })
-        .then(SetCallback => {
-            console.log(`Promise ${HftOrNot} SetCallback ${SetCallback}`);
+    console.log(`Promise ${HftOrNot} init ${init}`); 
 
-            // Параметр autopos указывает на необходимость автоматического запроса клиентских позиций на срочном рынке FORTS после каждой клиентской сделки.
-            // Если autopos не указан, по умолчанию он принимается равным true. Задание <autopos>false</autopos> при активной торговле ускоряет взаимодействие с сервером.
-            // <autopos>true/false</autopos>
-            // <session_timeout>Таймаут на сессию в секундах</session_timeout>
-            // <request_timeout>Таймаут на запрос в секундах </request_timeout>
-            const myXMLConnectString =
-        `${'<command id="connect">' + '<login>'}${
-          objectAccountsAndDll['users'][HftOrNot].Account.login
-        }</login>` +
-        `<password>${objectAccountsAndDll['users'][HftOrNot].Account.password}</password>` +
-        `<host>${objectAccountsAndDll['servers'][HftOrNot].host}</host>` +
-        `<port>${objectAccountsAndDll['servers'][HftOrNot].port}</port>` +
-        '<language>en</language>' +
-        '<autopos>false</autopos>' +
-        '<session_timeout>200</session_timeout>' +
-        '<request_timeout>20</request_timeout>' +
-        '</command>';
-            return objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
-                myXMLConnectString,
-            );
-        })
-        .catch(err => {
-            console.log(`Promise ${HftOrNot} catch ${err}`);
-        })
-        .finally(() => {
-            console.log(`Promise ${HftOrNot} end`);
-        });
+    console.log(`Promise ${HftOrNot} SetCallback ${SetCallback}`);
 
-    return null;
+    const myXMLConnectString =
+    `${'<command id="connect">' + '<login>'}${
+      objectAccountsAndDll['users'][HftOrNot].Account.login
+    }</login>` +
+    `<password>${objectAccountsAndDll['users'][HftOrNot].Account.password}</password>` +
+    `<host>${objectAccountsAndDll['servers'][HftOrNot].host}</host>` +
+    `<port>${objectAccountsAndDll['servers'][HftOrNot].port}</port>` +
+    '<language>en</language>' +
+    '<autopos>false</autopos>' +
+    '<session_timeout>200</session_timeout>' +
+    '<request_timeout>20</request_timeout>' +
+    '</command>';
+  objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(myXMLConnectString,); 
+   }
+catch(err) {
+        console.log(`Promise ${HftOrNot} catch ${err}`);
+    }
+finally{
+        console.log(`Promise ${HftOrNot} end`);
+    };
+    return null; 
 }
 
 // подключение Hft и НЕ Hft в цикле
@@ -944,9 +960,7 @@ function functionGetHistory(queryObject) {
     '</command>';
 
     // истрию получаю для NotHft - указываю явно
-    return objectAccountsAndDll['afterInitialize']['NotHft'].SendCommand(
-        commandXml,
-    );
+    return objectAccountsAndDll['afterInitialize']['NotHft'].SendCommand(commandXml,);
 }
 
 // #endregion
@@ -1001,9 +1015,7 @@ function functionGetHistoryByTimer() {
  * */
 function functionSendOrderToBirga(queryObject) {
     const { HftOrNot } = queryObject;
-    const command =
-    functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject);
-
+    const command =functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject);
     return objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(command);
 }
 
@@ -1262,28 +1274,29 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
  *
  * @return string
  * */
-function functionCancelOrder(queryObject) {
-    /*
-    http://127.0.0.1:12345/?command=cancelorder&orderId=10703545&HftOrNot=NotHft
-    http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
-    //<command id=”cancelstoporder”>
-    // <transactionid>номер из структуры orders</transactionid>
-    // </command>
-    * */
-    const { HftOrNot } = queryObject;
+//removed by maruf
+// function functionCancelOrder(queryObject) {
+//     /*
+//     http://127.0.0.1:12345/?command=cancelorder&orderId=10703545&HftOrNot=NotHft
+//     http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
+//     //<command id=”cancelstoporder”>
+//     // <transactionid>номер из структуры orders</transactionid>
+//     // </command>
+//     * */
+//     const { HftOrNot } = queryObject;
 
-    /** @var queryObject.orderId string */
-    const { orderId } = queryObject;
-    const { command } = queryObject;
-    const makeParametrsFromUrl =
-    `<command id="${command}">` +
-    `<transactionid>${orderId}</transactionid>` +
-    '</command>';
+//     /** @var queryObject.orderId string */
+//     const { orderId, command } = queryObject;
+//     const {} = queryObject;
+//     const makeParametrsFromUrl =
+//     `<command id="${command}">` +
+//     `<transactionid>${orderId}</transactionid>` +
+//     '</command>';
 
-    return objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
-        makeParametrsFromUrl,
-    );
-}
+//     return objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
+//         makeParametrsFromUrl,
+//     );
+// }
 
 // #endregion
 
@@ -1334,7 +1347,7 @@ module.exports = {
     objectAccountsAndDll,
     functionGetHistory,
     functionSendOrderToBirga,
-    functionCancelOrder,
+    // functionCancelOrder,
     functionConnect,
     isTransaqConnected,
 };
