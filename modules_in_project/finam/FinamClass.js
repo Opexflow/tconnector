@@ -1,6 +1,5 @@
 try {
     // #region переменные
-    // const mysqlModule = require('../common_sevice_functions/mysqlClass.js');
     const birgaNameVariableFinam = 'Finam';
     let isSnapshot = true;
     const functions = require('../common_sevice_functions/functions.js'); // различные функции
@@ -129,7 +128,6 @@ try {
                         amountUpdateBid = Number(updateGlass.quotes.quote[numberInUpdate]['buy']);
                         if (amountUpdateBid < 0) {
                             // удаление из стакана
-                            // (savedGlass.quotes.quote['bids']).splice(priceUpdate, 1);
                             delete savedGlass.quotes.quote['bids'][priceUpdate];
                         } else {
                             // изменение количества, если такое поле в массиве есть, или установка нового поля
@@ -206,10 +204,6 @@ try {
         // #region стакан
         if (Object.keys(glass)['0'] === 'quotes') {
             // возможно, что если один массив, то ['0'] не делается биржей
-            // if (glass.quotes.quote === undefined) {
-            //     let a = 1;
-            // }
-            // else
             if (glass.quotes.quote['0'] === undefined) {
                 glass.quotes.quote['0'] = glass.quotes.quote;
             }
@@ -223,17 +217,9 @@ try {
 
                 // сохранить snapshot стакана
                 const glassSnapshot = finamClass.setSnapshot(commonPairName, glass);
-
-                // #region запись котировок в базу
-                // mysqlModule.functionSaveGlassInDb(commonPairName, birgaNameVariableFinam, glassSnapshot);
-                // #endregion
             } else {
                 // обновление стакана
                 const glassAfterUpdate = finamClass.functionUpdateGlass(commonPairName, glass);
-
-                // #region запись котировок в базу
-                // mysqlModule.functionSaveGlassInDb(commonPairName, birgaNameVariableFinam, glassAfterUpdate);
-                // #endregion
             }
         }
 
