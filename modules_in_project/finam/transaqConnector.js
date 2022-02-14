@@ -133,17 +133,6 @@ function functionCallback(msg, HftOrNot) {
 
             /** @var object.news_header string */
             /** @var object.sec_info_upd string */
-            if (
-                object.quotes === undefined &&
-        object.quotations === undefined &&
-        object.news_header === undefined &&
-        object.sec_info_upd === undefined
-            ) {
-
-                // vvv отладочное
-                // writeToFile(string, 'C:/Users/Administrator/Project/robot/log/' + HftOrNot + '/log.log');
-                // console.log(HftOrNot + ' ' + string);
-            }
 
             // #region завершение вывода ответа и завершение работы веб сервера с server.js
             // передано из сервера из файла server.js, вывести результат выполнения команды и завершить работу веб сервера
@@ -178,8 +167,6 @@ function functionCallback(msg, HftOrNot) {
                         const arraySplit = object.candles.candle['0'].date.split(' ');
                         const arraySplitDate = arraySplit['0'].split('.');
                         const tableName = `history_5min_${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']}`;
-
-                        // mysqlModule.functionCreateTable(tableName);
                     }
 
                     if (getHistoryByTimer === false) {
@@ -209,8 +196,6 @@ function functionCallback(msg, HftOrNot) {
                             const arraySplit = object.candles.candle['0'].date.split(' ');
                             const arraySplitDate = arraySplit['0'].split('.');
                             tableName = `history_5min_${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']}`;
-
-                            // mysqlModule.functionCreateTable(tableName);
                         }
                         let idInDb = 1;
                         Object.keys(object.candles.candle).forEach(number => {
@@ -231,8 +216,6 @@ function functionCallback(msg, HftOrNot) {
                 'VALUES ' +
                 `(${addIdValue} 'Finam', '${contractString}', ${unixTime}, ` +
                 `'${datetimeHuman}', ${object.candles.candle[number].open}, ${object.candles.candle[number].low}, ${object.candles.candle[number].high}, ${object.candles.candle[number].close}, ${object.candles.candle[number].volume})`;
-
-                            // mysqlModule.functionWriteInDb(stringInsert, 'connectionForWriteHistory');
                             idInDb++;
                         });
 
@@ -339,9 +322,6 @@ function functionCallback(msg, HftOrNot) {
                 if (HftOrNot === 'Hft') {
                     finamClass.workOnGlass(object);
                 }
-
-                // let humanDate = new Date(unixTime).toISOString().replace('Z', '');
-                // console.log(HftOrNot + ' ' + humanDate + ' quotes ' + string + '\r\n');
             }
 
             // показатели торгов по инструментам, мксимальная и минимальная цена сессии, нужны для выставления рыночных ордеров
@@ -352,8 +332,6 @@ function functionCallback(msg, HftOrNot) {
                     object.quotations.quotation.high !== undefined &&
           object.quotations.quotation.low !== undefined
                 ) {
-                    // let humanDate = new Date(unixTime).toISOString().replace('Z', '');
-                    // console.log(HftOrNot + ' ' + humanDate + ' quotations ' + string + '\r\n');
                     maxPrices = {
                         maxPriceHigh: object.quotations.quotation.high,
                         maxPriceLow: object.quotations.quotation.low,
@@ -476,12 +454,6 @@ function functionCallback(msg, HftOrNot) {
                     }
                 }
             }
-
-            // isCheckFortsPosition = true positions
-            // сделки
-            // if (object.alltrades !== undefined) {
-            //     console.log(HftOrNot + ' ' + 'trades ' + string + '\r\n');
-            // }
         }
     } catch (e) {
         console.log(e);
@@ -655,10 +627,7 @@ function functionUnSubscribeByTimer(HftOrNot) {
     );
 
     // отключение functionGetSettingsFromDb
-    // clearTimeout(timerId);
 }
-
-// let timerId = setInterval(functionUnSubscribeByTimer, 20000);
 // #endregion
 
 // #region отключение
@@ -701,30 +670,10 @@ function functionConnectByTimer(HftOrNot) {
     // let offset = date.getTimezoneOffset();
     const offset = -3;
 
-    // let dateUnixForConnect = new Date(Date.UTC(+arrayDate['0'], (+arrayDate['1'] - 1), +arrayDate['2'], (10 + offset), 55)).getTime();
-    // let dateHumanForConnect = new Date(dateUnixForConnect).toISOString().replace('T', ' ').replace('Z', '');
-    // // console.log(currentFullDateThisServer + ' запуск functionConnectDisconnectByTimer');
-    // let diff = unixTime - dateUnixForConnect;
     let command = '';
 
-    // let timeStart = (7 * 60 * 60 * 1000);
     // разница во времени здесь получается 6 часов, активирую подключение за 60 секунд до запуска торгов
     // старт по таймеру отключаю, запускается, но не работает, сделал задание C:\Users\Administrator\AppData\Roaming\nvm\v11.0.0\pm2.cmd restart 0 в планировщике заданий
-    // if (
-    //     diff >= 200000
-    //     &&
-    //     diff <= 300000
-    //     ) {
-    //     console.log(
-    //         'dateHumanForConnect ' + dateHumanForConnect + '\r\n' +
-    //         'currentFullDateThisServer ' + currentFullDateThisServer + '\r\n' +
-    //         'unixTime ' + unixTime + '\r\n' +
-    //         'dateUnixForConnect ' + dateUnixForConnect + '\r\n' +
-    //         'diff ' + diff + '\r\n' +
-    //         'активирую подключение за 60 секунд до запуска торгов'
-    //     );
-    //     functionConnect();
-    // }
 
     // снятие открытых заявок перед закрытием сессии в 23:40
     const dateUnixForCancelOpenOrders = new Date(
@@ -908,11 +857,6 @@ function functionCloseWebServer(messageLog = '', string) {
  * */
 function writeToFile(inputArgs, fileName) {
     try {
-    // fs.appendFile(fileName, inputArgs + "\r\n", {'flag': 'as+'}, (err, fileDescriptor) => {
-        //     if (err) {
-        //         console.log(err);
-        //     }
-        // });
         fs.open(fileName, 'as+', (error, fileDescriptor) => {
             if (!error && fileDescriptor) {
                 fs.writeFile(fileDescriptor, `${inputArgs}\r\n`, error => {
@@ -1017,8 +961,6 @@ function functionGetHistoryByTimer() {
 
     setTimeout(functionGetHistoryByTimer, 20000);
 }
-
-// setTimeout(functionGetHistoryByTimer, 20000);
 // #endregion
 
 // #region выставление заявки, парметры заявки конструируются из url
@@ -1035,100 +977,6 @@ function functionSendOrderToBirga(queryObject) {
 
     return objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(command);
 }
-
-// #endregion
-
-// #region конструирование json строки для выставления заявки из xml, не использовать, использовать упрощенную версию
-
-// /**
-//  * @this {functionXmlToJson}
-//
-//  * @return object
-//  * */
-// function functionXmlToJson(HftOrNot) {
-//     let clientId = objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
-//     //#region все параметры заявки из документации
-//     let fullParametrs =
-//         '<command id="newstoporder">' +
-//         '<secid>идентификатор бумаги</secid>' +
-//         '<security>' +
-//         '<board> идентификатор режима торгов </board>' +
-//         '<seccode>Код инструмента</seccode>' +
-//         '</security>' +
-//         '<packetid>Номер пакета</packetid>' +
-//         '<client>идентификатор клиента</client>' +
-//         '<union>union code :string </union>' +
-//         '<buysell>B/S</buysell>' +
-//         '<linkedorderno>номер связанной активной заявки</linkedorderno>' +
-//         '<validfor>заявка действительно до</validfor>' +
-//         '<expdate>дата экспирации (только для ФОРТС)</expdate>' +
-//         '<stoploss>' +
-//         '<activationprice>Цена активации</activationprice>' +
-//         '<orderprice>Цена заявки</orderprice>' +
-//         '<bymarket/>' +
-//         '<quantity>Количество</quantity>' +
-//         '<usecredit/>' +
-//         '<guardtime>Защитное время</guardtime>' +
-//         '<brokerref>Примечание пользователя</brokerref>' +
-//         '</stoploss>' +
-//         '<takeprofit>' +
-//         '<activationprice>Цена активации</activationprice>' +
-//         '<quantity>Количество</quantity>' +
-//         '<usecredit/>' +
-//         '<guardtime>Защитное время</guardtime>' +
-//         '<brokerref>Примечание пользователя</brokerref>' +
-//         '<correction>Коррекция</correction>' +
-//         '<spread>Защитный спрэд</spread>' +
-//         '<bymarket/>' +
-//         '</takeprofit>' +
-//         '</command>';
-//
-//     //#region только нужные параметры заявки из документации
-//     let buyOrSell = 'B';
-//     // let buyOrSell = 'S';
-//     //Для validfor значение "0" означает, что заявка будет действительна до конца сессии
-//     let validfor = '0';
-//     let orderPrice = '40000';
-//     let quantity = '1';
-//     let stopLossPrice = parseFloat('' + (+orderPrice * 0.97)).toFixed(0);
-//     let takeProfitPrice = parseFloat('' + (+orderPrice * 1.03)).toFixed(0);
-//     if (buyOrSell === 'S') {
-//         stopLossPrice = parseFloat('' + (+orderPrice * 1.03)).toFixed(0);
-//         takeProfitPrice = parseFloat('' + (+orderPrice * 0.97)).toFixed(0);
-//     }
-//
-//     let onlyNeedParametrs =
-//         '<command id="newstoporder">' +
-//         '<security>' +
-//             '<board>' + board + '</board>' +
-//             '<seccode>' + seccode + '</seccode>' +
-//         '</security>' +
-//         '<client>' + clientId + '</client>' +
-//         '<buysell>' + buyOrSell + '</buysell>' +
-//         '<validfor>' + validfor + '</validfor>' +
-//         '<stoploss>' +
-//             '<orderprice>' + orderPrice + '</orderprice>' +
-//             '<quantity>' + quantity + '</quantity>' +
-//             '<activationprice>' + stopLossPrice + '</activationprice>' +
-//         '</stoploss>' +
-//         '<takeprofit>' +
-//             '<activationprice>' + takeProfitPrice + '</activationprice>' +
-//             '<quantity>' + quantity + '</quantity>' +
-//         '</takeprofit>' +
-//         '</command>';
-//
-//     let string = xml2json.toJson(onlyNeedParametrs);
-//     let object = JSON.parse(string);
-//
-//     return {
-//         'string': string,
-//         'object': object
-//     };
-// }
-// не использовать
-// functionXmlToJson();
-// использовать упрощенную версию
-
 // #endregion
 
 // #region конструирование строки заявки из url
