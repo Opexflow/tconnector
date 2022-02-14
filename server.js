@@ -1,7 +1,6 @@
 // #region переменные
 const http = require('http');
 const url = require('url');
-const popUp = require('popups');
 const xml2json = require('xml2json');
 const transaqConnector = require('./modules_in_project/finam/transaqConnector.js');
 const functions = require('./modules_in_project/common_sevice_functions/functions.js');
@@ -80,39 +79,66 @@ http
 
             const urlParts = url.parse(req.url, true);
             const queryObject = urlParts.query;
-            if (functions.functionEmptyOnlyObject(queryObject) === false) {
+            if(Object.keys(queryObject).length !== 0 && queryObject.constructor === Object)
+              {
                 /** @var queryObject.command string */
                 /** @var queryObject.HftOrNot string */
                 let { command } = queryObject;
                 const { HftOrNot } = queryObject;
-                const clientId =transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
+                const objectAccountsAndDll = {
+                    users: {
+                        Hft: { Account: { login: '', password: '', clientId_1: '' } },
+                        NotHft: {
+                            Account: {
+                                login: '',
+                                password: '',
+                                clientId_1: '',
+                            },
+                        },
+                    },
+                    dllFiles: config.dllFiles,
+                    servers: {
+                        Hft: {},
+                        NotHft: {},
+                    },
+                    afterInitialize: {
+                        Hft: {},
+                        NotHft: {},
+                    },
+                };               
+
+                const clientId =objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
                 // if there is some command
                 if (command !== undefined) {
                     let result = '';
+                    
                     // простая команда
                     if (command === 'connect') {
-                        if (!!transaqConnector.isTransaqConnected[HftOrNot]) {
-                            result = transaqConnector.objectAccountsAndDll['afterInitialize'][ HftOrNot].SendCommand('<command id="disconnect"/>');
+                        const isTransaqConnected = {
+                            Hft: false,
+                            NoHft: false,
+                        };
+                        if (isTransaqConnected[HftOrNot]) {
+                            result = objectAccountsAndDll.afterInitialize[ HftOrNot].SendCommand('<command id="disconnect"/>');
                         } 
                         else {
-                            transaqConnector.isTransaqConnected[HftOrNot] = true;
+                            isTransaqConnected[HftOrNot] = true;
                         }
                         const {login, password, host, port,} = queryObject;
 
                         console.log(queryObject);
-
-                        transaqConnector.objectAccountsAndDll.users[HftOrNot] = {
+                        objectAccountsAndDll.users[HftOrNot] = {
                             Account: {
                                 login,
                                 password,
                                 clientId_1: '',
                             },
                         };
-                        transaqConnector.objectAccountsAndDll.servers[HftOrNot] = {
+                        objectAccountsAndDll.servers[HftOrNot] = {
                             host,
                             port,
                         };
-                        return transaqConnector.functionConnect(HftOrNot, data => {
+                    return transaqConnector.functionConnect(HftOrNot, data => {
                             const message = JSON.parse(xml2json.toJson(data));
                              //if message and other info exist
                             if (!message && !message.sec_info_upd && !message.pits && !message.securities) {
@@ -124,18 +150,14 @@ http
                             const incoming_message=message.messages
                             if (!!incoming_message && !!incoming_message.message && incoming_message.message.text === 'Password expired. Please change the password') {
                                 // TODO: popup about pass expired.
-                                popUp.alert({
-                                  content: 'pass expired'
-                              });
+                          
                                 console.log('pass expired');
                             }
 
                             if (message['server_status']) {
                                 if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
                                     // TODO: popup about connect error and redirect to login page
-                                    popUp.alert({
-                                      content: 'login error please try again'
-                                  });
+                             
                                   // redirect to login page
                                   res.redirect('./login');
                                     console.log('error login');
@@ -154,7 +176,7 @@ http
                         });
                     }
                     if (arrayOneWorldCommands.includes(command)) {
-                        result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(`<command id="${command}"/>`);
+                        result = objectAccountsAndDll.afterInitialize[HftOrNot].SendCommand(`<command id="${command}"/>`);
                     } 
                     else if (arrayAnyWorldCommands.includes(command)) 
                     {
@@ -167,7 +189,7 @@ http
                                     }),
                                 );
                             }
-                            result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
+                            result =objectAccountsAndDll.afterInitialize[HftOrNot]
                             .SendCommand(`<command id="change_pass" oldpass="${queryObject.oldpass}" newpass="${queryObject.newpass}"/>`,);
                             result = JSON.parse(xml2json.toJson(result)).result;
                             return res.end(

@@ -5,14 +5,6 @@
  *
  * @return boolean
  * */
-function functionEmptyOnlyObject(obj) {
-    for (const key in obj) {
-        // если тело цикла начнет выполняться - значит в объекте есть свойства
-        return false;
-    }
-
-    return true;
-}
 
 /**
  * строку в boolean

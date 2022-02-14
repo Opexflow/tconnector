@@ -16,36 +16,10 @@ const arrayUnikStringCloseOpenPositions = []; // массив уникальны
 // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
 // #endregion
 
-const isTransaqConnected = {
-    Hft: false,
-    NoHft: false,
-};
 
 // #region параметры подключения
 const board = 'FUT';
 
-// #region объект с логинами, паролями, dll файлами hft и НЕ hft, объектами dll
-const objectAccountsAndDll = {
-    users: {
-        Hft: { Account: { login: '', password: '', clientId_1: '' } },
-        NotHft: {
-            Account: {
-                login: '',
-                password: '',
-                clientId_1: '',
-            },
-        },
-    },
-    dllFiles: config.dllFiles,
-    servers: {
-        Hft: {},
-        NotHft: {},
-    },
-    afterInitialize: {
-        Hft: {},
-        NotHft: {},
-    },
-};
 
 // #region функции в dll
 const dllFunctions = {
@@ -506,18 +480,18 @@ const functionCallbackHft = ffi.Callback(
     },
 );
 
-const functionCallbackNotHft = ffi.Callback(
-    ref.types.bool,
-    [ref.refType(ref.types.CString)],
-    msg => {
-        functionCallback(msg, 'NotHft');
-        if (msg !== undefined) {
-            objectAccountsAndDll['afterInitialize']['NotHft'].FreeMemory(msg);
-        }
+// const functionCallbackNotHft = ffi.Callback(
+//     ref.types.bool,
+//     [ref.refType(ref.types.CString)],
+//     msg => {
+//         functionCallback(msg, 'NotHft');
+//         if (msg !== undefined) {
+//             objectAccountsAndDll['afterInitialize']['NotHft'].FreeMemory(msg);
+//         }
 
-        return null;
-    },
-);
+//         return null;
+//     },
+// );
 
 // #endregion
 
@@ -527,7 +501,7 @@ const functionCallbackNotHft = ffi.Callback(
  *
  * @return null
  * */
-function functionConnect(HftOrNot, callback) {
+async function functionConnect(HftOrNot, callback) {
     // noinspection JSUnusedLocalSymbols
 
     const ffiCallback = ffi.Callback(
@@ -545,7 +519,6 @@ function functionConnect(HftOrNot, callback) {
 
     const promise = new Promise((resolve, reject) => {
         resolve(
-
             // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
             objectAccountsAndDll['afterInitialize'][HftOrNot].Initialize(
                 path.join(process.cwd(), `log/${HftOrNot}/log.log`),
@@ -553,21 +526,16 @@ function functionConnect(HftOrNot, callback) {
             ),
         );
     });
-    promise
-        .then(init => {
-            // разные callback в зависимости от HftOrNot
 
-            if (HftOrNot === 'Hft') {
-                return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(
-                    ffiCallback,
-                );
-            }
-            if (HftOrNot === 'NotHft') {
-                return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(
-                    ffiCallback,
-                );
-            }
-            console.log(`Promise ${HftOrNot} init ${init}`);
+    promise.then(init => {
+               // разные callback в зависимости от HftOrNo    
+    if (HftOrNot === 'Hft') {
+        return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
+    }
+    if (HftOrNot === 'NotHft') {
+        return objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
+    }
+    console.log(`Promise ${HftOrNot} init ${init}`);    
         })
         .then(SetCallback => {
             console.log(`Promise ${HftOrNot} SetCallback ${SetCallback}`);
@@ -959,8 +927,11 @@ function functionGetHistory(queryObject) {
     const { count } = queryObject;
 
     // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
-    const contractString = functionActiveContractString();
-
+        const unixTime = new Date().getTime();
+        const dateHuman = new Date(unixTime).toISOString().substring(0, 10);
+        const arrayDate = dateHuman.split('-');
+        const contractString= functions.functionContractString(arrayDate['0'],arrayDate['1'],arrayDate['2'],);
+    
     const commandXml =
     `<command id="${command}">` +
     '<security>' +
