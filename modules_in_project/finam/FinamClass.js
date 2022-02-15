@@ -258,9 +258,7 @@ try {
         type,
         tempArray,
     ) {
-        // массив заявок уже есть
-        const checkEmpty = functions.functionEmptyOnlyObject(openOrdersObject[type]);
-
+        // массив заявок уже есть        
         // Это на случай, если tempArray - один объект из одной транзакции
         if (
             typeof (tempArray) === 'object' &&
@@ -272,7 +270,8 @@ try {
         }
 
         // true - массив - пустой, false - не пустой
-        if (checkEmpty === false) {
+        if(Object.keys(openOrdersObject[type]).length !== 0 && openOrdersObject[type].constructor === Object)
+        {
             // есть ли поле новой транзакции в массиве
             for (const numberTemp in tempArray) {
                 let isFieldExists = false;
