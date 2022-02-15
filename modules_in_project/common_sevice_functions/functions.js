@@ -1,22 +1,13 @@
 /**
  * проверка только объекта на пустоту - true - message - пустое, false - не пустое
- * @this {functionEmptyOnlyObject}
- * @param obj object
- *
+
  * @return boolean
  * */
 
 /**
  * строку в boolean
- * @this {getBool}
- * @param val string
- *
- * @return boolean
  *
  * */
-function getBool(val) {
-    return Boolean(JSON.parse(String(val).toLowerCase()));
-}
 
 // #region строка контракта
 /**
@@ -104,8 +95,6 @@ function functionContractString(
 // #endregion
 
 // #region module.exports
-module.exports.functionEmptyOnlyObject = functionEmptyOnlyObject;
-module.exports.getBool = getBool;
 module.exports.functionContractString = functionContractString;
 
 // #endregion

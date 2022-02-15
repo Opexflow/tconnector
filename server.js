@@ -122,11 +122,11 @@ http
                                 console.log(message);
                             }
                             // set value if they exist
-                            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = !!message.client && !!message.client.id && message.client;
-                            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = !!message.client && !!message.client.id && message.client.id;
+                            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client && message.client.id && message.client;
+                            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client && message.client.id && message.client.id;
                             const incoming_message=message.messages
                             
-                            if (!!incoming_message && !!incoming_message.message && incoming_message.message.text === 'Password expired. Please change the password') {
+                            if (incoming_message && incoming_message.message && incoming_message.message.text === 'Password expired. Please change the password') {
                                 // TODO: popup about pass expired.
                                 console.log('pass expired');
                             }
@@ -134,7 +134,9 @@ http
                                 if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
                                     // TODO: popup about connect error and redirect to login page
                                   // redirect to login page
-                                  res.redirect('./login');
+                                  res.writeHead(302, {
+                                    location: "/login",
+                                  });
                                   console.log('error login');
                                     res.end(
                                         JSON.stringify({
@@ -156,11 +158,11 @@ http
                     else if (arrayAnyWorldCommands.includes(command)) 
                     {
                         if (command === 'change_pass') {
-                            if (!!queryObject.oldpass || !!queryObject.newpass) {
+                            if (!queryObject.oldpass || !queryObject.newpass) {
                                 return res.end(
                                     JSON.stringify({
                                         error: true,
-                                        message: 'oldpass or newpass are required',
+                                        message: 'oldpass And newpass are required',
                                     }),
                                 );
                             }

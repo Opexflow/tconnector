@@ -1214,7 +1214,7 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
     // #region рыночная заявка
     if (queryObject.ismarket !== undefined) {
     /** @var queryObject.ismarket string */
-        const isMarket = functions.getBool(queryObject.ismarket);
+        const isMarket=Boolean(JSON.parse(String(queryObject.ismarket).toLowerCase()));
         if (isMarket === true) {
             // в ТС FORTS не предусмотрены заявки без цены, то рыночные заявки для фьючерсов эмулируются с помощью лимитированных следующим образом:
             // заявки на покупку подаются по максимально возможной цене сессии, а заявки на продажу - по минимально возможной. Для таких заявок также автоматически устанавливается признак "Снять остаток".
