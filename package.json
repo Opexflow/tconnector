@@ -23,7 +23,7 @@
   "homepage": "https://github.com/Opexflow/tconnector#readme",
   "dependencies": {
     "@saleae/ffi": "^3.0.2",
-    "@saleae/ref": "^2.0.1",
+    "@saleae/ref": "2.0.1",
     "eslint-config-airbnb": "^19.0.4",
     "nodemon": "^2.0.15",
     "xml2json": "^0.12.0"
