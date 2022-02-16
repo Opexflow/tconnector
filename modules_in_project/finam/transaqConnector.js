@@ -1347,7 +1347,6 @@ module.exports = {
     objectAccountsAndDll,
     functionGetHistory,
     functionSendOrderToBirga,
-    // functionCancelOrder,
     functionConnect,
     isTransaqConnected,
 };
