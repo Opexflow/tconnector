@@ -3,7 +3,15 @@ const express = require("express");
 const cors =require('cors')
 const app = express();
 const http = require('http').Server(app);
-const io = require('socket.io')(http);
+const io = require('socket.io')(http,{
+        cors: {
+            origin: "*",
+            methods: ["GET", "POST"],
+            transports: ['websocket', 'polling'],
+            credentials: true
+        },
+        allowEIO3: true
+});
 const route=express.Router()
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -75,26 +83,28 @@ const arrayAnyWorldCommands = [
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=Hft
         * */
-    
+            let clientsocket
+            io.on('connection', function(socket) {
+                console.log(`user connected with socket id: ${socket.id}`);
+                //Whenever someone disconnects this piece of code executed
+                clientsocket=socket
+                clientsocket.emit('conn', "wait for this");
+                socket.on('disconnect', function () {
+                    console.log('disconnected');
+                });
+            })
     // if we are sure to listen only to port 12345 we can remove this random port process.env.PORT
     const port=process.env.PORT||12345
     http.listen(port, function() {
         console.log(`we are listening on port ${port}`);
      });
+  
 // app.listen(process.env.PORT||12345,function(){console.log("connected")});
 //api form
 route.get('/',(req,res)=>{
-    try{
-        let clientsocket
-        io.on('connection', function(socket) {
-            console.log(`user connected with socket id: ${socket.id}`);
-            //Whenever someone disconnects this piece of code executed
-            clientsocket=socket
-            socket.on('disconnect', function () {
-                console.log('disconnected');
-            });
-        })
-
+    try{ 
+    // clientsocket.emit('another', "another one");
+    console.log(clientsocket.id)
     const command=req.query.command
     if (command !== undefined) {
     const HftOrNot= req.query.HftOrNot
@@ -121,8 +131,10 @@ route.get('/',(req,res)=>{
             port,
         };
            console.log('before')
+        //    console.log(`our client socket${clientsocket.id}`)
+        //    clientsocket.emit("before",'we are connecting you')
             return transaqConnector.functionConnect(HftOrNot, data => {
-                console.log('after')
+            console.log('after')
             const message = JSON.parse(xml2json.toJson(data));
              //if message and other info exist
              if (!message) {
@@ -140,18 +152,14 @@ route.get('/',(req,res)=>{
                 // TODO: popup about pass expired.
                 console.log('pass expired');
                 // socket io notifu the user that the password is expired , make this to sender only
-                clientsocket.emit("password-expired",'Password expired. Please change the password')
+                // clientsocket.emit("password-expired",'Password expired. Please change the password')
                 
             }
             if (message['server_status']) {
                 if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
                     // TODO: popup about connect error and redirect to login page
                   // redirect to login page
-                  clientsocket.emit("login-error",'Wrong login or password')
-                  res.redirect(302, {
-                    location: "/login",
-                  });
-                console.log('error login');
+                clientsocket.emit("login-error",'Wrong login or password')
                 const error = new Error("Wrong login or password")
                 error.status=402
                 throw error;
@@ -168,7 +176,6 @@ route.get('/',(req,res)=>{
     if (arrayOneWorldCommands.includes(command)) {
         result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(`<command id="${command}"/>`);
     } 
-
     else if (arrayAnyWorldCommands.includes(command)) 
     {
         if (command === 'change_pass') {
@@ -177,9 +184,16 @@ route.get('/',(req,res)=>{
                 error.status=402
                 throw error;
             }
+           
+            console.log(req.query.oldpass)
             result =transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
             .SendCommand(`<command id="change_pass" oldpass="${req.query.oldpass}" newpass="${req.query.newpass}"/>`,);
+            console.log(result)
             result = JSON.parse(xml2json.toJson(result)).result;
+            if( result.success !== 'true')
+            {
+                clientsocket.emit("password-change-error",'Wrong old password')
+            }
             return res.json({
                 error: result.success !== 'true',
                 message: result.message,
@@ -188,7 +202,7 @@ route.get('/',(req,res)=>{
         if (command === 'gethistorydata') {
             result = transaqConnector.functionGetHistory(req.query);
             //send history data suing socket socket io
-            clientsocket.emit("history-data",result);
+            // clientsocket.emit("history-data",result);
         } 
         else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
             result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
@@ -203,7 +217,7 @@ route.get('/',(req,res)=>{
             result = transaqConnector.functionSendOrderToBirga(req.query);
             console.log(result);
              //send that he mades new order socket io
-             clientsocket.emit("history-data",result);
+            //  clientsocket.emit("history-data",result);
         }
          else if (command === 'cancelorder' ||command === 'cancelstoporder') {
             const { HftOrNot } = req.query;
@@ -233,23 +247,7 @@ route.get('/',(req,res)=>{
     module.exports.res = res;
 }
     catch (error) {
+        // clientsocket.emit("password-change-error",'Wrong login or password')
         res.status(error.status || 500).json({status: error.status, message: error.message})
     }
 })
-
-//client side for io
-
-// import {io} from "socket.io-client"
-// const socket=io("server url")
-// socket.on('connect',(socket)=>{
-//     console.log("we are connected to socket io with id of socket.id")
-// })
-// message send from server
-// put this in some variable then to chnage some state or trigger popup
-// socket.on("eventnametosubscribe",(message)=>{ 
-    // const incomingNotification=message
-// })
-//with callback function
-// socket.emit("eventnametofire",message,(fromserver)=>{ 
-    // const incomingNotification=message
-// })
