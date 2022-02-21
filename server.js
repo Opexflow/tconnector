@@ -130,11 +130,9 @@ route.get('/',(req,res)=>{
             host,
             port,
         };
-           console.log('before')
         //    console.log(`our client socket${clientsocket.id}`)
         //    clientsocket.emit("before",'we are connecting you')
             return transaqConnector.functionConnect(HftOrNot, data => {
-            console.log('after')
             const message = JSON.parse(xml2json.toJson(data));
              //if message and other info exist
              if (!message) {
@@ -149,7 +147,8 @@ route.get('/',(req,res)=>{
             const incoming_message=message.messages
            
             if (incoming_message && incoming_message.message && incoming_message.message.text === 'Password expired. Please change the password') {
-                // TODO: popup about pass expired.
+                // TODO: popup about pass expired. not active emit
+                clientsocket.emit("pass-expired",'password expired')
                 console.log('pass expired');
                 // socket io notifu the user that the password is expired , make this to sender only
                 // clientsocket.emit("password-expired",'Password expired. Please change the password')
