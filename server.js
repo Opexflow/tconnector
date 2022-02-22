@@ -104,13 +104,14 @@ const arrayAnyWorldCommands = [
 route.get('/',(req,res)=>{
     try{ 
     // clientsocket.emit('another', "another one");
-    console.log(clientsocket.id)
+  
     const command=req.query.command
     if (command !== undefined) {
     const HftOrNot= req.query.HftOrNot
     const clientId =transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
     let result
     if (command === 'connect') {
+       
         if (transaqConnector.isTransaqConnected[HftOrNot]) {
             result = objectAccountsAndDll['afterInitialize'][ HftOrNot].SendCommand('<command id="disconnect"/>');
         } 
@@ -132,21 +133,25 @@ route.get('/',(req,res)=>{
         };
         //    console.log(`our client socket${clientsocket.id}`)
         //    clientsocket.emit("before",'we are connecting you')
-            return transaqConnector.functionConnect(HftOrNot, data => {
+        console.log("here")
+           return transaqConnector.functionConnect(HftOrNot, data => {
             const message = JSON.parse(xml2json.toJson(data));
              //if message and other info exist
              if (!message) {
                 return;
             }
             if (!message.sec_info_upd && !message.pits && !message.securities) {
-                res.json(message)
+                // res.json(message)
+                console.log(message)
             }
             // set value if they exist
-            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client && message.client.id && message.client;
-            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client && message.client.id && message.client.id;
-            const incoming_message=message.messages
+            if(message.client&& message.client.id)
+            {
+            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
+            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
+            }
            
-            if (incoming_message && incoming_message.message && incoming_message.message.text === 'Password expired. Please change the password') {
+            if (message.messages && message.messages.message && message.messages.message.text === 'Password expired. Please change the password') {
                 // TODO: popup about pass expired. not active emit
                 clientsocket.emit("pass-expired",'password expired')
                 console.log('pass expired');
@@ -155,23 +160,31 @@ route.get('/',(req,res)=>{
                 
             }
             if (message['server_status']) {
+                
                 if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
                     // TODO: popup about connect error and redirect to login page
                   // redirect to login page
+                  console.log("status")
                 clientsocket.emit("login-error",'Wrong login or password')
-                const error = new Error("Wrong login or password")
-                error.status=402
-                throw error;
+                return res.json({error:true,message:"Wrong login or password"})
+               
+                // const error = new Error("Wrong login or password")
+                // error.status=402
+                // throw error;
+                
 
-                } else if (message['server_status']['connected'] === 'true') {
+                } 
+            
+                else if (message['server_status']['connected'] === 'true') {
                     // TODO: exit button and disconnect on click.
                     console.log('login ok');
-                    res.end(JSON.stringify({ error: false }));
+                   return res.json({ error: false });
                 }
             }
+           
         });
     }
-
+////////
     if (arrayOneWorldCommands.includes(command)) {
         result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(`<command id="${command}"/>`);
     } 
@@ -179,19 +192,17 @@ route.get('/',(req,res)=>{
     {
         if (command === 'change_pass') {
             if (!req.query.oldpass || !req.query.newpass) {
-                const error = new Error("oldpass And newpass are required")
-                error.status=402
-                throw error;
+               return res.json("Please fill all field")
             }
-           
             console.log(req.query.oldpass)
             result =transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
             .SendCommand(`<command id="change_pass" oldpass="${req.query.oldpass}" newpass="${req.query.newpass}"/>`,);
             console.log(result)
-            result = JSON.parse(xml2json.toJson(result)).result;
+            result = JSON.parse(xml2json.toJson(result));
+            console.log(result)
             if( result.success !== 'true')
             {
-                clientsocket.emit("password-change-error",'Wrong old password')
+            clientsocket.emit("password-change-error",'Wrong old password')
             }
             return res.json({
                 error: result.success !== 'true',
@@ -231,9 +242,12 @@ route.get('/',(req,res)=>{
         }
     }
         // если о твет = false, вывести ответ и завершить работу веб сервера
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-        res.write(JSON.stringify({ error: false, message: result }));
+        // console.log("status1")
+        // res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+        res.json({ error: false, message: result });
+
         if (result.indexOf('true') > -1) {
+            console.log("in")
             res.end();
         }
         // иначе экспортировать переменные, завершение вывода ответа и завершение работы веб сервера будет в transaqConnector.js
@@ -247,6 +261,6 @@ route.get('/',(req,res)=>{
 }
     catch (error) {
         // clientsocket.emit("password-change-error",'Wrong login or password')
-        res.status(error.status || 500).json({status: error.status, message: error.message})
+        return res.status(500).json({status: error.status, message: error.message})
     }
 })

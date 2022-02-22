@@ -558,7 +558,7 @@ async function functionConnect(HftOrNot, callback) {
      SetCallback= await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
     }
     if (HftOrNot === 'NotHft') {
-    SetCallback=await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
+     SetCallback=await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
     }
     console.log(`Promise ${HftOrNot} init ${init}`); 
 
