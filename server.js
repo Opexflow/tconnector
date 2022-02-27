@@ -3,6 +3,9 @@ const express = require("express");
 const cors =require('cors')
 const app = express();
 const http = require('http').Server(app);
+// const morgan=require('morgan');
+// const path = require("path");
+// const compression = require('compression');
 const io = require('socket.io')(http,{
         cors: {
             origin: "*",
@@ -17,8 +20,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cors())
 app.use(route)
+
 const xml2json = require('xml2json');
 const transaqConnector = require('./modules_in_project/finam/transaqConnector.js');
+const dev=app.get('dev')==="production"
 
 // различные функции
 let workHereOrInTransaqConnector = true;
@@ -95,12 +100,24 @@ const arrayAnyWorldCommands = [
             })
     // if we are sure to listen only to port 12345 we can remove this random port process.env.PORT
     const port=process.env.PORT||12345
-    http.listen(port, function() {
+    http.listen(port,function() {
         console.log(`we are listening on port ${port}`);
      });
+
   
 // app.listen(process.env.PORT||12345,function(){console.log("connected")});
 //api form
+// if(dev)
+//  {
+
+//      app.use(compression())
+//      app.use(morgan)
+//      app.use(express.static(path.resolve(__dirname,'build')))
+//      app.get('*',(req,res)=>{
+//          res.sendFile(path.resolve(__dirname,'opextrade','build','index.html'))
+//      })
+//  }
+
 route.get('/',(req,res)=>{
     try{ 
     // clientsocket.emit('another', "another one");
