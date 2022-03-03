@@ -99,8 +99,9 @@ const arrayAnyWorldCommands = [
                 });
             })
     // if we are sure to listen only to port 12345 we can remove this random port process.env.PORT
+    const ip='0.0.0.0'
     const port=process.env.PORT||12345
-    http.listen(port,function() {
+    app.listen(port,ip,function() {
         console.log(`we are listening on port ${port}`);
      });
 
@@ -167,7 +168,6 @@ route.get('/',(req,res)=>{
             transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
             transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
             }
-           
             if (message.messages && message.messages.message && message.messages.message.text === 'Password expired. Please change the password') {
                 // TODO: popup about pass expired. not active emit
                 clientsocket.emit("pass-expired",'password expired')

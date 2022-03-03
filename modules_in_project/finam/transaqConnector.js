@@ -1,6 +1,6 @@
 // #region переменные
-const ffi = require('@saleae/ffi');
-const ref = require('@saleae/ref');
+const ffi = require('ffi-cross');
+const ref = require('ref-napi');
 const xml2json = require('xml2json');
 const fs = require('fs');
 const path = require('path');
@@ -48,12 +48,12 @@ const isTransaqConnected = {
   
 // #region функции в dll
 const dllFunctions = {
-    Initialize: [ref.types.CString, [ref.types.CString, ref.types.int32]],
-    UnInitialize: [ref.types.CString, []],
-    FreeMemory: [ref.types.bool, [ref.types.CString]],
-    SendCommand: [ref.types.CString, [ref.types.CString]],
-    SetCallback: [ref.types.bool, ['pointer']],
-    SetCallbackEx: [ref.types.bool, ['pointer', ref.types.CString]],
+    Initialize: [ffi.types.CString, [ffi.types.CString, ffi.types.int32]],
+    UnInitialize: [ffi.types.CString, []],
+    FreeMemory: [ffi.types.bool, [ffi.types.CString]],
+    SendCommand: [ffi.types.CString, [ffi.types.CString]],
+    SetCallback: [ffi.types.bool, ['pointer']],
+    SetCallbackEx: [ffi.types.bool, ['pointer', ffi.types.CString]],
 };
 
 // #endregion
@@ -73,7 +73,6 @@ Object.keys(typesUsersArray).forEach(number => {
 // #endregion
 
 const mainFile = require('../../server.js');
-
 const subscribeOnGlass = {
     Hft: false,
     NotHft: false,
@@ -528,7 +527,6 @@ const functionCallbackHft = ffi.Callback(
  * */
 async function functionConnect(HftOrNot, callback) {
     // noinspection JSUnusedLocalSymbols
-
     const ffiCallback = ffi.Callback(
         ref.types.bool,
         [ref.refType(ref.types.CString)],
@@ -541,6 +539,7 @@ async function functionConnect(HftOrNot, callback) {
             return null;
         },
     );
+    
     const promise = new Promise((resolve, reject) => {
         resolve(
             // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
@@ -550,9 +549,11 @@ async function functionConnect(HftOrNot, callback) {
             ),
         );
     });
+    console.log(promise)
     try{
  //converting to async await
     const init=await promise
+    console.log(init)
     let SetCallback
     if (HftOrNot === 'Hft') {
      SetCallback= await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback,);
@@ -577,7 +578,9 @@ async function functionConnect(HftOrNot, callback) {
     '<request_timeout>20</request_timeout>' +
     '</command>';
   objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(myXMLConnectString,); 
+
    }
+  
 catch(err) {
         console.log(`Promise ${HftOrNot} catch ${err}`);
     }
@@ -958,7 +961,7 @@ function functionGetHistory(queryObject) {
     `<count>${count}</count>` +
     '<reset>true</reset>' +
     '</command>';
-
+    
     // истрию получаю для NotHft - указываю явно
     return objectAccountsAndDll['afterInitialize']['NotHft'].SendCommand(commandXml,);
 }
