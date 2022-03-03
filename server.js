@@ -78,14 +78,16 @@ http
 
             const urlParts = url.parse(req.url, true);
             const queryObject = urlParts.query;
+            console.log(req.url, queryObject);
             //check if the object is empety or not
-            if(Object.keys(queryObject).length !== 0 && queryObject.constructor === Object)
+            if(Object.keys(queryObject).length !== 0)
               {
                 /** @var queryObject.command string */
                 /** @var queryObject.HftOrNot string */
                 let { command } = queryObject;
                 const { HftOrNot } = queryObject;
-                const clientId =transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
+                console.log(transaqConnector.objectAccountsAndDll.users, HftOrNot);
+                const clientId = transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
                 // if there is some command
                 if (command !== undefined) {
                     let result = '';
@@ -116,8 +118,10 @@ http
                             const message = JSON.parse(xml2json.toJson(data));
                              //if message and other info exist
                              if (!message) {
+                                 console.log('not message');
                                 return;
                             }
+                            console.log(message);
                             if (!message.sec_info_upd && !message.pits && !message.securities) {
                                 console.log(message);
                             }
