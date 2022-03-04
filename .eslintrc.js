@@ -99,6 +99,13 @@ module.exports = {
         'no-console': ['error', { allow: ['assert', 'error', 'warn'] }],
         'key-spacing': ['error', { beforeColon: false, afterColon: true, mode: 'strict' }],
         'space-infix-ops': 'error',
+        "padding-line-between-statements": [
+            "error",
+            { blankLine: "always", prev: "*", next: "return" },
+            { blankLine: "always", prev: ["const", "let", "var"], next: "*"}, { blankLine: "any", prev: ["const", "let", "var"], next: ["const", "let", "var"]},
+            { blankLine: "always", prev: "directive", next: "*" }, { blankLine: "any", prev: "directive", next: "directive" },
+            { blankLine: "always", prev: ["case", "default"], next: "*" }
+        ],
         'space-before-function-paren': ['error', {
             anonymous: 'never',
             named: 'never',
