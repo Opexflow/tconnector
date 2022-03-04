@@ -1,7 +1,8 @@
 {
   "targets": [
     {
-      "target_name": "binding"
+      "target_name": "binding",
     }
   ]
 }
+

@@ -5,10 +5,10 @@
   "main": "server.js",
   "engines": {
     "npm": ">=6.0.0",
-    "node": "12.22.10"
+    "node": "^14.17.0"
   },
   "scripts": {
-    "start": "node server.js",
+    "start": "nodemon server.js",
     "lint": "npx eslint . --fix"
   },
   "repository": {
@@ -22,9 +22,14 @@
   },
   "homepage": "https://github.com/Opexflow/tconnector#readme",
   "dependencies": {
-    "@saleae/ffi": "^3.0.2",
-    "@saleae/ref": "^2.0.1",
+    "ffi-cross": "^5.0.10",
+    "ref-napi": "3.0.3",
+    "cors": "^2.8.5",
     "eslint-config-airbnb": "^19.0.4",
+    "express": "^4.17.2",
+    "morgan": "^1.10.0",
+    "nodemon": "^2.0.15",
+    "socket.io": "^4.4.1",
     "xml2json": "^0.12.0"
   },
   "devDependencies": {
