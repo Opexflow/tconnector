@@ -130,7 +130,7 @@ app.listen(port, ip, function() {
 //          res.sendFile(path.resolve(__dirname,'opextrade','build','index.html'))
 //      })
 //  }
-
+let message
 route.get('/', (req, res)=>{
 
     try {
@@ -172,35 +172,33 @@ route.get('/', (req, res)=>{
 
                 //    console.log(`our client socket${clientsocket.id}`)
                 //    clientsocket.emit("before",'we are connecting you')
-                console.log('here');
-
                 return transaqConnector.functionConnect(HftOrNot, data => {
-
-                    const message = JSON.parse(xml2json.toJson(data));
+                    message = JSON.parse(xml2json.toJson(data));
+                    
 
                     //if message and other info exist
                     if (!message) {
-
                         return;
-
                     }
                     if (!message.sec_info_upd && !message.pits && !message.securities) {
-
-                        // res.json(message)
+                        // res.json(message)                
                         console.log(message);
-
                     }
-
+                    
                     // set value if they exist
-                    if (message.client && message.client.id) {
 
+                    if (message.client && message.client.id) {
+                        
                         transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
                         transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
+                        
 
                     }
+                    
                     if (message.messages && message.messages.message && message.messages.message.text === 'Password expired. Please change the password') {
 
                         // TODO: popup about pass expired. not active emit
+                        console.log("expired")
                         clientsocket.emit('pass-expired', 'password expired');
                         console.log('pass expired');
 
@@ -208,22 +206,19 @@ route.get('/', (req, res)=>{
                         // clientsocket.emit("password-expired",'Password expired. Please change the password')
 
                     }
+                   
                     if (message['server_status']) {
-
+                       console.log("instat")
                         if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
-
-                            // TODO: popup about connect error and redirect to login page
-                            // redirect to login page
+                            
                             console.log('status');
                             clientsocket.emit('login-error', 'Wrong login or password');
 
                             return res.json({ error: true, message: 'Wrong login or password' });
 
-                            // const error = new Error("Wrong login or password")
-                            // error.status=402
-                            // throw error;
-
-                        } else if (message['server_status']['connected'] === 'true') {
+                        } 
+                        
+                        else if (message['server_status']['connected'] === 'true') {
 
                             // TODO: exit button and disconnect on click.
                             console.log('login ok');
@@ -233,11 +228,13 @@ route.get('/', (req, res)=>{
                         }
 
                     }
-
+                   
+                   return;
                 });
-
+                console.log("end")
+                return res.json(message);
+                
             }
-
             ////////
             if (arrayOneWorldCommands.includes(command)) {
 
