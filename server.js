@@ -15,6 +15,7 @@ const io = require('socket.io')(http,{
         },
         allowEIO3: true
 });
+
 const route=express.Router()
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -90,6 +91,7 @@ const arrayAnyWorldCommands = [
         * */
             let clientsocket
             io.on('connection', function(socket) {
+                console.log("connection come")
                 console.log(`user connected with socket id: ${socket.id}`);
                 //Whenever someone disconnects this piece of code executed
                 clientsocket=socket
@@ -101,7 +103,7 @@ const arrayAnyWorldCommands = [
     // if we are sure to listen only to port 12345 we can remove this random port process.env.PORT
     const ip='0.0.0.0'
     const port=process.env.PORT||12345
-    app.listen(port,ip,function() {
+    http.listen(port,ip,function() {
         console.log(`we are listening on port ${port}`);
      });
 
@@ -151,8 +153,8 @@ route.get('/',(req,res)=>{
         };
         //    console.log(`our client socket${clientsocket.id}`)
         //    clientsocket.emit("before",'we are connecting you')
-        console.log("here")
-           return transaqConnector.functionConnect(HftOrNot, data => {
+        
+        return transaqConnector.functionConnect(HftOrNot, data => {
             const message = JSON.parse(xml2json.toJson(data));
              //if message and other info exist
              if (!message) {
@@ -160,6 +162,11 @@ route.get('/',(req,res)=>{
             }
             if (!message.sec_info_upd && !message.pits && !message.securities) {
                 // res.json(message)
+                console.log("logs")
+                if(message.news_header){
+                clientsocket.emit("show-logs",message)
+                }
+                
                 console.log(message)
             }
             // set value if they exist
@@ -170,8 +177,8 @@ route.get('/',(req,res)=>{
             }
             if (message.messages && message.messages.message && message.messages.message.text === 'Password expired. Please change the password') {
                 // TODO: popup about pass expired. not active emit
-                clientsocket.emit("pass-expired",'password expired')
                 console.log('pass expired');
+                clientsocket.emit("pass-expired",'password expired, Please change your password')
                 // socket io notifu the user that the password is expired , make this to sender only
                 // clientsocket.emit("password-expired",'Password expired. Please change the password')
                 
@@ -184,12 +191,6 @@ route.get('/',(req,res)=>{
                   console.log("status")
                 clientsocket.emit("login-error",'Wrong login or password')
                 return res.json({error:true,message:"Wrong login or password"})
-               
-                // const error = new Error("Wrong login or password")
-                // error.status=402
-                // throw error;
-                
-
                 } 
             
                 else if (message['server_status']['connected'] === 'true') {
@@ -200,8 +201,9 @@ route.get('/',(req,res)=>{
             }
            
         });
+    
     }
-////////
+
     if (arrayOneWorldCommands.includes(command)) {
         result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(`<command id="${command}"/>`);
     } 
@@ -215,12 +217,30 @@ route.get('/',(req,res)=>{
             result =transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
             .SendCommand(`<command id="change_pass" oldpass="${req.query.oldpass}" newpass="${req.query.newpass}"/>`,);
             console.log(result)
+            
             result = JSON.parse(xml2json.toJson(result));
-            console.log(result)
-            if( result.success !== 'true')
+            if(result.result)
             {
-            clientsocket.emit("password-change-error",'Wrong old password')
+            let incomemessage=result.result.message
+            
+            console.log(incomemessage)
+           
+           console.log(result)
+           console.log("value"+!result.result)
+            if( result.result.success !== 'true')
+            {
+            clientsocket.emit("password-change-error",incomemessage)
             }
+            if(result.result.success === 'true'){
+                clientsocket.emit("password-change-error","Password changed successfuly") 
+            }
+            
+        }
+        else{
+                console.log("loginfirst")
+                clientsocket.emit("password-change-error","Please log-in first") 
+            
+        }
             return res.json({
                 error: result.success !== 'true',
                 message: result.message,

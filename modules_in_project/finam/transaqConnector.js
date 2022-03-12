@@ -574,7 +574,6 @@ function functionCallback(msg, HftOrNot) {
         console.log(e);
 
     }
-
     return null;
 
 }
@@ -624,19 +623,22 @@ async function functionConnect(HftOrNot, callback) {
 
     // noinspection JSUnusedLocalSymbols
     const ffiCallback = ffi.Callback(
-        ref.types.bool,
-        [ref.refType(ref.types.CString)],
+        ffi.types.bool,
+        [ref.refType(ffi.types.CString)],
         msg => {
             callback(ref.readCString(msg, 0), HftOrNot);
             functionCallback(msg, HftOrNot);
             if (msg !== undefined) {
                 objectAccountsAndDll['afterInitialize'][HftOrNot].FreeMemory(msg);
             }
-            console.log('ending')
+           
             return null;
         },
     );
-   
+    process.on("exit", function () {
+        const x=ffiCallback;
+      });
+    
 //    console.log(objectAccountsAndDll['afterInitialize'][HftOrNot])
     const promise = new Promise((resolve, reject) => {
         resolve(
@@ -692,7 +694,7 @@ async function functionConnect(HftOrNot, callback) {
         console.log(`Promise ${HftOrNot} end`);
 
     }
-
+    console.log("last nul")
     return null;
 
 }
