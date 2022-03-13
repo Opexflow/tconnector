@@ -71,7 +71,7 @@ Object.keys(typesUsersArray).forEach(number => {
         path.join(process.cwd(), objectAccountsAndDll['dllFiles'][typeUser]),
         dllFunctions,
     );
-
+    
 });
 
 // #endregion
@@ -204,7 +204,6 @@ function functionCallback(msg, HftOrNot) {
                         functionCloseWebServer(messageLog, string);
 
                     } else {
-
                         // это история по таймеру
                         messageLog = `${dateHuman}<br>\r\n ${messageLog}`;
                         console.log(
@@ -274,7 +273,8 @@ function functionCallback(msg, HftOrNot) {
                     // сбросить переменную getHistoryByTimer
                     getHistoryByTimer = false;
 
-                } else if (
+                } 
+                else if (
                     commandText.indexOf('get_portfolio') > -1 &&
           string.indexOf('portfolio') > -1
                 ) {
@@ -574,7 +574,6 @@ function functionCallback(msg, HftOrNot) {
         console.log(e);
 
     }
-
     return null;
 
 }
@@ -624,45 +623,39 @@ async function functionConnect(HftOrNot, callback) {
 
     // noinspection JSUnusedLocalSymbols
     const ffiCallback = ffi.Callback(
-        ref.types.bool,
-        [ref.refType(ref.types.CString)],
+        ffi.types.bool,
+        [ref.refType(ffi.types.CString)],
         msg => {
-
             callback(ref.readCString(msg, 0), HftOrNot);
             functionCallback(msg, HftOrNot);
             if (msg !== undefined) {
-
                 objectAccountsAndDll['afterInitialize'][HftOrNot].FreeMemory(msg);
-
             }
-
+           
             return null;
-
         },
     );
-
+    process.on("exit", function () {
+        const x=ffiCallback;
+      });
+    
+//    console.log(objectAccountsAndDll['afterInitialize'][HftOrNot])
     const promise = new Promise((resolve, reject) => {
-
         resolve(
-
             // относительный путь в виндовс не всегда работает корректно, иногда существующий файл не находится
             objectAccountsAndDll['afterInitialize'][HftOrNot].Initialize(
                 path.join(process.cwd(), `log/${HftOrNot}/log.log`),
                 1,
             ),
         );
-
     });
 
-    console.log(promise);
     try {
 
         //converting to async await
         const init = await promise;
-
         console.log(init);
         let SetCallback;
-
         if (HftOrNot === 'Hft') {
 
             SetCallback = await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback);
@@ -701,7 +694,7 @@ async function functionConnect(HftOrNot, callback) {
         console.log(`Promise ${HftOrNot} end`);
 
     }
-
+    console.log("last nul")
     return null;
 
 }
