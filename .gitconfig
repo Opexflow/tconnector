@@ -1,0 +1,27 @@
+[color]
+    diff = yes
+    ui = auto
+[color "branch"]
+    current = yellow reverse
+    local = yellow
+    remote = green
+[color "diff"]
+    meta = yellow
+    frag = magenta
+    old = red
+    new = green
+    whitespace = red reverse
+[color "status"]
+    added = yellow
+    changed = green
+    untracked = cyan
+
+[push]
+    default = current
+
+[alias]
+    st = status
+    br = branch
+    co = checkout
+    ci = commit
+    lol = log --graph --decorate --pretty=oneline --abbrev-commit
