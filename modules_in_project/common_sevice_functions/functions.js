@@ -22,7 +22,6 @@ function functionContractString(
     month,
     day,
 ) {
-
     const contrakt = 'Si';
     let contractsLetter = '';
     let lastNumberInYear = Number(year.substring(3));
@@ -33,15 +32,11 @@ function functionContractString(
         month === 12 &&
         day >= 15
     ) {
-
         contractsLetter = 'H';
         lastNumberInYear++;
         if (lastNumberInYear === 10) {
-
             lastNumberInYear = 0;
-
         }
-
     } else
     if (
         month < 3 ||
@@ -50,9 +45,7 @@ function functionContractString(
             day < 15
         )
     ) {
-
         contractsLetter = 'H';
-
     } else
     if (
         (
@@ -66,9 +59,7 @@ function functionContractString(
             day < 15
         )
     ) {
-
         contractsLetter = 'M';
-
     } else
     if (
         (
@@ -82,9 +73,7 @@ function functionContractString(
             day < 15
         )
     ) {
-
         contractsLetter = 'U';
-
     } else
     if (
         (
@@ -98,13 +87,10 @@ function functionContractString(
             day < 15
         )
     ) {
-
         contractsLetter = 'Z';
-
     }
 
     return contrakt + contractsLetter + lastNumberInYear;
-
 }
 
 // #endregion
