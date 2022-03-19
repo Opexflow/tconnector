@@ -701,6 +701,11 @@ function functionDisconnect(HftOrNot) {
  * */
 function functionConnectByTimer(HftOrNot) {
     const clientId = objectAccountsAndDll['users'][HftOrNot].Account.clientId_1;
+
+    if (!clientId) {
+        return;
+    }
+
     const date = new Date();
     const unixTime = date.getTime();
     const currentFullDateThisServer = date
