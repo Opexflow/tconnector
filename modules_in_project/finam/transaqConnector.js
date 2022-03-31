@@ -306,6 +306,7 @@ function functionCallback(msg, HftOrNot) {
                 // vvv проверка обязательна
                 if (object.server_status.connected === 'true') {
                     if (subscribeOnGlass[HftOrNot]) {
+                        
                         console.log(`${HftOrNot} ${string}`);
                         if (HftOrNot === 'Hft') {
                             // команда запроса стакана, чтобы не дублировать, только для Hft
@@ -377,6 +378,7 @@ function functionCallback(msg, HftOrNot) {
             // позиции
             else if (object.positions !== undefined) {
                 if (object.positions.forts_position !== undefined) {
+                   
                     console.log(`${HftOrNot} ${string}`);
 
                     // количество лотов для закрытия открытых позици
@@ -510,18 +512,18 @@ function functionCallback(msg, HftOrNot) {
 // #endregion
 
 // #region разные callback в зависимости от HftOrNot, поступают возвраты на запросы
-const functionCallbackHft = ffi.Callback(
-    ref.types.bool,
-    [ref.refType(ref.types.CString)],
-    msg => {
-        functionCallback(msg, 'Hft');
-        if (msg !== undefined) {
-            objectAccountsAndDll['afterInitialize']['Hft'].FreeMemory(msg);
-        }
+// const functionCallbackHft = ffi.Callback(
+//     ref.types.bool,
+//     [ref.refType(ref.types.CString)],
+//     msg => {
+//         functionCallback(msg, 'Hft');
+//         if (msg !== undefined) {
+//             objectAccountsAndDll['afterInitialize']['Hft'].FreeMemory(msg);
+//         }
 
-        return null;
-    },
-);
+//         return null;
+//     },
+// );
 
 // const functionCallbackNotHft = ffi.Callback(
 //     ref.types.bool,
@@ -543,7 +545,10 @@ const functionCallbackHft = ffi.Callback(
  * @this {functionConnect}
  *
  * @return null
+ *  const ffi = require("ffi-cross");
+   const { ref, types } = ffi;
  * */
+
 async function functionConnect(HftOrNot, callback) {
     // noinspection JSUnusedLocalSymbols
     const ffiCallback = ffi.Callback(
@@ -555,7 +560,7 @@ async function functionConnect(HftOrNot, callback) {
             if (msg !== undefined) {
                 objectAccountsAndDll['afterInitialize'][HftOrNot].FreeMemory(msg);
             }
-
+            
             return null;
         },
     );
@@ -612,7 +617,7 @@ async function functionConnect(HftOrNot, callback) {
     } finally {
         console.log(`Promise ${HftOrNot} end`);
     }
-    console.log('last nul');
+
 
     return null;
 }
