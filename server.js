@@ -46,14 +46,7 @@ const arrayAnyWorldCommands = [
 
 // #region веб сервер
 
-//   const clientIp = req.socket.remoteAddress.split(':').slice('-1')[0];
-//   if (clientIp !== '127.0.0.1')
-//     return res.end(
-//       JSON.stringify({
-//         error: true,
-//         message: 'Non localhost requests is not avaible',
-//       })
-//     );
+
 /*
          server_status
              http://127.0.0.1:12345/?command=server_status&HftOrNot=NotHft
@@ -114,18 +107,6 @@ http.listen(port, ip, function() {
     console.log(`we are listening on port ${port}`);
 });
 
-// app.listen(process.env.PORT||12345,function(){console.log("connected")});
-//api form
-// if(dev)
-//  {
-
-//      app.use(compression())
-//      app.use(morgan)
-//      app.use(express.static(path.resolve(__dirname,'build')))
-//      app.get('*',(req,res)=>{
-//          res.sendFile(path.resolve(__dirname,'opextrade','build','index.html'))
-//      })
-//  }
 
 route.get('/', (req, res)=>{
     try {
@@ -136,17 +117,21 @@ route.get('/', (req, res)=>{
         if (command !== undefined) {
             console.log(req.query);
             const HftOrNot = req.query.HftOrNot;
+            
             const clientId = transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
             let result;
 
             if (command === 'connect') {
+       
                 if (transaqConnector.isTransaqConnected[HftOrNot]) {
-                    result = objectAccountsAndDll['afterInitialize'][ HftOrNot].SendCommand('<command id="disconnect"/>');
-                } else {
+                    console.log(transaqConnector)
+                    result = transaqConnector.objectAccountsAndDll['afterInitialize'][ HftOrNot].SendCommand('<command id="disconnect"/>');
+                } 
+                else {
                     transaqConnector.isTransaqConnected[HftOrNot] = true;
                 }
-                const { login, password, host, port } = req.query;
-
+                const {login, password, host, port} = req.query;
+               
                 transaqConnector.objectAccountsAndDll.users[HftOrNot] = {
                     Account: {
                         login,
@@ -158,86 +143,89 @@ route.get('/', (req, res)=>{
                     host,
                     port,
                 };
-
                 //    console.log(`our client socket${clientsocket.id}`)
                 //    clientsocket.emit("before",'we are connecting you')
-
                 let lastEmitTime = Date.now();
-
                 return transaqConnector.functionConnect(HftOrNot, data => {
                     const message = JSON.parse(xml2json.toJson(data));
-
-                    //if message and other info exist
-                    if (!message) {
+                     //if message and other info exist
+                     if (!message) {
                         return;
                     }
-
+                    if (// !message.sec_info_upd && !message.pits && !message.securities &&
+                    (Date.now() - lastEmitTime) > 5000)
+                     {
+                    clientsocket.emit('auth', {
+                        checkStatus: true,
+                    });
+                    // console.log(Date.now() - lastEmitTime)
+        
+                    lastEmitTime = Date.now();
+                }
+                    if(message.candles)
+                    {
+                        console.log("history")
+                        console.log(message)
+                        clientsocket.emit("show-widget",message)
+                    }
                     clientsocket && clientsocket.emit('show-logs', message);
                     if (// !message.sec_info_upd && !message.pits && !message.securities &&
-                        (Date.now() - lastEmitTime) > 5000) {
+                        (Date.now() - lastEmitTime) > 5000)
+                         {
                         clientsocket.emit('auth', {
                             checkStatus: true,
                         });
-
-                        // console.log(Date.now() - lastEmitTime);
-
+                        // console.log(Date.now() - lastEmitTime)
+            
                         lastEmitTime = Date.now();
                     }
-
-                    //     // res.json(message)
-                    //     console.log('logs');
-                    //     if (message.news_header) {
-                    //         clientsocket.emit('show-logs', message);
-                    //     }
-
-                    //     console.log(message);
-                    // }
-
                     // set value if they exist
-                    if (message.client && message.client.id) {
-                        transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
-                        transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
-
-                        clientsocket.emit('auth', {
-                            connected: true,
-                        });
-                    }
-
+                    if(message.client&& message.client.id)
+                    {
+                    transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
+                    transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
+                    
+                    clientsocket.emit('auth', {
+                        connected: true,
+                    });
+                }
                     if (message.messages && message.messages.message && message.messages.message.text === 'Password expired. Please change the password') {
                         // TODO: popup about pass expired. not active emit
                         console.log('pass expired');
-
-                        // clientsocket.emit('pass-expired', 'password expired, Please change your password');
-
+                        clientsocket.emit("pass-expired",'password expired, Please change your password')
                         // socket io notifu the user that the password is expired , make this to sender only
                         // clientsocket.emit("password-expired",'Password expired. Please change the password')
                         clientsocket.emit('auth', {
                             expired: true,
                         });
-
-                        return res.end();
                     }
-
                     if (message['server_status']) {
+                        
                         if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
                             // TODO: popup about connect error and redirect to login page
-                            clientsocket.emit('auth', {
-                                error: true,
-                            });
-                        } else if (message['server_status']['connected'] === 'true') {
-                            transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.connected = true;
+                          // redirect to login page
+                          clientsocket.emit('auth', {
+                            error: true,
+                        });
+                        //return
+                        } 
+                    
+                        else if (message['server_status']['connected'] === 'true') {
+                            // TODO: exit button and disconnect on click.
                             clientsocket.emit('auth', {
                                 connected: true,
                             });
+                            //return
                         }
                     }
                 });
             }
-
+    
             if (arrayOneWorldCommands.includes(command)) {
                 result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(`<command id="${command}"/>`);
                 const r = JSON.parse(xml2json.toJson(result));
 
+                
                 // console.log(command, result);
 
                 if (command === 'server_status') {
@@ -255,7 +243,9 @@ route.get('/', (req, res)=>{
             } else if (arrayAnyWorldCommands.includes(command)) {
                 if (command === 'change_pass') {
                     if (!req.query.oldpass || !req.query.newpass) {
-                        return res.json('Please fill all field');
+                        // return;
+                        console.log("error")
+                        // res.json('Please fill all field');
                     }
                     console.log(req.query.oldpass);
                     result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
@@ -281,17 +271,18 @@ route.get('/', (req, res)=>{
                         clientsocket.emit('password-change-error', 'Please log-in first');
                     }
 
-                    return res.json({
-                        error: result.success !== 'true',
-                        message: result.message,
-                    });
+                    // return;
+                    //  res.json({
+                    //     error: result.success !== 'true',
+                    //     message: result.message,
+                    // });
                 }
                 if (command === 'gethistorydata') {
-                    result = transaqConnector.functionGetHistory(req.query);
-
-                    //send history data suing socket socket io
+                   console.log("gethistory")
+                   result = transaqConnector.functionGetHistory(req.query);
                     // clientsocket.emit("history-data",result);
-                } else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
+                } 
+                else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
                     result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
                         .SendCommand(`<command id="${command}" money="true" client="${clientId}"/>`);
                 } else if (command === 'get_forts_positions') {
@@ -322,11 +313,12 @@ route.get('/', (req, res)=>{
             // если о твет = false, вывести ответ и завершить работу веб сервера
             // console.log("status1")
             // res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-            res.json({ error: false, message: result });
+            // res.json({ error: false, message: result });
+            //use socket
 
             if (result.indexOf('true') > -1) {
                 console.log('in');
-                res.end();
+                res.end ;
             }
 
             // иначе экспортировать переменные, завершение вывода ответа и завершение работы веб сервера будет в transaqConnector.js
