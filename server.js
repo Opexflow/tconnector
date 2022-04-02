@@ -46,7 +46,6 @@ const arrayAnyWorldCommands = [
 
 // #region веб сервер
 
-
 /*
          server_status
              http://127.0.0.1:12345/?command=server_status&HftOrNot=NotHft
@@ -107,7 +106,6 @@ http.listen(port, ip, function() {
     console.log(`we are listening on port ${port}`);
 });
 
-
 route.get('/', (req, res)=>{
     try {
     // clientsocket.emit('another', "another one");
@@ -117,21 +115,19 @@ route.get('/', (req, res)=>{
         if (command !== undefined) {
             console.log(req.query);
             const HftOrNot = req.query.HftOrNot;
-            
+
             const clientId = transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
             let result;
 
             if (command === 'connect') {
-       
                 if (transaqConnector.isTransaqConnected[HftOrNot]) {
-                    console.log(transaqConnector)
+                    console.log(transaqConnector);
                     result = transaqConnector.objectAccountsAndDll['afterInitialize'][ HftOrNot].SendCommand('<command id="disconnect"/>');
-                } 
-                else {
+                } else {
                     transaqConnector.isTransaqConnected[HftOrNot] = true;
                 }
-                const {login, password, host, port} = req.query;
-               
+                const { login, password, host, port } = req.query;
+
                 transaqConnector.objectAccountsAndDll.users[HftOrNot] = {
                     Account: {
                         login,
@@ -143,56 +139,59 @@ route.get('/', (req, res)=>{
                     host,
                     port,
                 };
+
                 //    console.log(`our client socket${clientsocket.id}`)
                 //    clientsocket.emit("before",'we are connecting you')
                 let lastEmitTime = Date.now();
+
                 return transaqConnector.functionConnect(HftOrNot, data => {
                     const message = JSON.parse(xml2json.toJson(data));
-                     //if message and other info exist
-                     if (!message) {
+
+                    //if message and other info exist
+                    if (!message) {
                         return;
                     }
                     if (// !message.sec_info_upd && !message.pits && !message.securities &&
-                    (Date.now() - lastEmitTime) > 5000)
-                     {
-                    clientsocket.emit('auth', {
-                        checkStatus: true,
-                    });
-                    // console.log(Date.now() - lastEmitTime)
-        
-                    lastEmitTime = Date.now();
-                }
-                    if(message.candles)
-                    {
-                        console.log("history")
-                        console.log(message)
-                        clientsocket.emit("show-widget",message)
-                    }
-                    clientsocket && clientsocket.emit('show-logs', message);
-                    if (// !message.sec_info_upd && !message.pits && !message.securities &&
-                        (Date.now() - lastEmitTime) > 5000)
-                         {
+                        (Date.now() - lastEmitTime) > 5000) {
                         clientsocket.emit('auth', {
                             checkStatus: true,
                         });
+
                         // console.log(Date.now() - lastEmitTime)
-            
+
                         lastEmitTime = Date.now();
                     }
+                    if (message.candles) {
+                        console.log('history');
+                        console.log(message);
+                        clientsocket.emit('show-widget', message);
+                    }
+                    clientsocket && clientsocket.emit('show-logs', message);
+                    if (// !message.sec_info_upd && !message.pits && !message.securities &&
+                        (Date.now() - lastEmitTime) > 5000) {
+                        clientsocket.emit('auth', {
+                            checkStatus: true,
+                        });
+
+                        // console.log(Date.now() - lastEmitTime)
+
+                        lastEmitTime = Date.now();
+                    }
+
                     // set value if they exist
-                    if(message.client&& message.client.id)
-                    {
-                    transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
-                    transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
-                    
-                    clientsocket.emit('auth', {
-                        connected: true,
-                    });
-                }
+                    if (message.client && message.client.id) {
+                        transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
+                        transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
+
+                        clientsocket.emit('auth', {
+                            connected: true,
+                        });
+                    }
                     if (message.messages && message.messages.message && message.messages.message.text === 'Password expired. Please change the password') {
                         // TODO: popup about pass expired. not active emit
                         console.log('pass expired');
-                        clientsocket.emit("pass-expired",'password expired, Please change your password')
+                        clientsocket.emit('pass-expired', 'password expired, Please change your password');
+
                         // socket io notifu the user that the password is expired , make this to sender only
                         // clientsocket.emit("password-expired",'Password expired. Please change the password')
                         clientsocket.emit('auth', {
@@ -200,32 +199,30 @@ route.get('/', (req, res)=>{
                         });
                     }
                     if (message['server_status']) {
-                        
                         if (message.server_status.connected === 'error' || message.server_status.connected === 'false') {
                             // TODO: popup about connect error and redirect to login page
-                          // redirect to login page
-                          clientsocket.emit('auth', {
-                            error: true,
-                        });
+                            // redirect to login page
+                            clientsocket.emit('auth', {
+                                error: true,
+                            });
+
                         //return
-                        } 
-                    
-                        else if (message['server_status']['connected'] === 'true') {
+                        } else if (message['server_status']['connected'] === 'true') {
                             // TODO: exit button and disconnect on click.
                             clientsocket.emit('auth', {
                                 connected: true,
                             });
+
                             //return
                         }
                     }
                 });
             }
-    
+
             if (arrayOneWorldCommands.includes(command)) {
                 result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(`<command id="${command}"/>`);
                 const r = JSON.parse(xml2json.toJson(result));
 
-                
                 // console.log(command, result);
 
                 if (command === 'server_status') {
@@ -244,7 +241,8 @@ route.get('/', (req, res)=>{
                 if (command === 'change_pass') {
                     if (!req.query.oldpass || !req.query.newpass) {
                         // return;
-                        console.log("error")
+                        console.log('error');
+
                         // res.json('Please fill all field');
                     }
                     console.log(req.query.oldpass);
@@ -278,11 +276,11 @@ route.get('/', (req, res)=>{
                     // });
                 }
                 if (command === 'gethistorydata') {
-                   console.log("gethistory")
-                   result = transaqConnector.functionGetHistory(req.query);
+                    console.log('gethistory');
+                    result = transaqConnector.functionGetHistory(req.query);
+
                     // clientsocket.emit("history-data",result);
-                } 
-                else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
+                } else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
                     result = transaqConnector.objectAccountsAndDll['afterInitialize'][HftOrNot]
                         .SendCommand(`<command id="${command}" money="true" client="${clientId}"/>`);
                 } else if (command === 'get_forts_positions') {
@@ -318,7 +316,7 @@ route.get('/', (req, res)=>{
 
             if (result.indexOf('true') > -1) {
                 console.log('in');
-                res.end ;
+                res.end();
             }
 
             // иначе экспортировать переменные, завершение вывода ответа и завершение работы веб сервера будет в transaqConnector.js

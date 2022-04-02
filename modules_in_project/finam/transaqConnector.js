@@ -306,7 +306,6 @@ function functionCallback(msg, HftOrNot) {
                 // vvv проверка обязательна
                 if (object.server_status.connected === 'true') {
                     if (subscribeOnGlass[HftOrNot]) {
-                        
                         console.log(`${HftOrNot} ${string}`);
                         if (HftOrNot === 'Hft') {
                             // команда запроса стакана, чтобы не дублировать, только для Hft
@@ -378,7 +377,6 @@ function functionCallback(msg, HftOrNot) {
             // позиции
             else if (object.positions !== undefined) {
                 if (object.positions.forts_position !== undefined) {
-                   
                     console.log(`${HftOrNot} ${string}`);
 
                     // количество лотов для закрытия открытых позици
@@ -560,7 +558,7 @@ async function functionConnect(HftOrNot, callback) {
             if (msg !== undefined) {
                 objectAccountsAndDll['afterInitialize'][HftOrNot].FreeMemory(msg);
             }
-            
+
             return null;
         },
     );
@@ -617,7 +615,6 @@ async function functionConnect(HftOrNot, callback) {
     } finally {
         console.log(`Promise ${HftOrNot} end`);
     }
-
 
     return null;
 }
