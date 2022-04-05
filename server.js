@@ -151,22 +151,17 @@ route.get('/', (req, res)=>{
                     if (!message) {
                         return;
                     }
-                    if (// !message.sec_info_upd && !message.pits && !message.securities &&
-                        (Date.now() - lastEmitTime) > 5000) {
-                        clientsocket.emit('auth', {
-                            checkStatus: true,
-                        });
 
-                        // console.log(Date.now() - lastEmitTime)
+                    // if (message.candles) {
+                    //     console.log('history');
+                    //     console.log(message);
+                    //     clientsocket.emit('show-widget', message);
+                    // }
 
-                        lastEmitTime = Date.now();
+                    if (message.news_header && clientsocket) {
+                        clientsocket.emit('show-logs', message);
                     }
-                    if (message.candles) {
-                        console.log('history');
-                        console.log(message);
-                        clientsocket.emit('show-widget', message);
-                    }
-                    clientsocket && clientsocket.emit('show-logs', message);
+
                     if (// !message.sec_info_upd && !message.pits && !message.securities &&
                         (Date.now() - lastEmitTime) > 5000) {
                         clientsocket.emit('auth', {
@@ -180,7 +175,7 @@ route.get('/', (req, res)=>{
 
                     // set value if they exist
                     if (message.client && message.client.id) {
-                        transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
+                        // transaqConnector.objectAccountsAndDll.users[HftOrNot].Account = message.client;
                         transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 = message.client.id;
 
                         clientsocket.emit('auth', {

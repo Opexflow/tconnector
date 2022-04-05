@@ -120,11 +120,8 @@ finamClass.saveMaxPrices(maxPrices);
  *
  * @return null
  * */
-function functionCallback(msg, HftOrNot) {
+function functionCallback(inputData, HftOrNot) {
     try {
-        /** @var ref.readCString function */
-        const inputData = ref.readCString(msg, 0);
-
         if (inputData) {
             let unixTime = new Date().getTime();
             const dateHuman = new Date(unixTime)
@@ -553,8 +550,9 @@ async function functionConnect(HftOrNot, callback) {
         ffi.types.bool,
         [ref.refType(ffi.types.CString)],
         msg => {
-            callback(ref.readCString(msg, 0), HftOrNot);
-            functionCallback(msg, HftOrNot);
+            const data = ref.readCString(msg, 0);
+            callback(data, HftOrNot);
+            functionCallback(data, HftOrNot);
             if (msg !== undefined) {
                 objectAccountsAndDll['afterInitialize'][HftOrNot].FreeMemory(msg);
             }
