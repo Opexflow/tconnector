@@ -1,8 +1,13 @@
 // #region переменные
+/* eslint-disable no-console */
 const express = require('express');
 const cors = require('cors');
 const app = express();
 const http = require('http').Server(app);
+
+// const morgan=require('morgan');
+// const path = require("path");
+// const compression = require('compression');
 const io = require('socket.io')(http, {
     cors: {
         origin: '*',
@@ -39,46 +44,104 @@ const arrayAnyWorldCommands = [
     'cancelorder',
     'change_pass',
 ];
+
+// #region веб сервер
+
+/*
+         server_status
+             http://127.0.0.1:12345/?command=server_status&HftOrNot=NotHft
+             http://127.0.0.1:12345/?command=server_status&HftOrNot=Hft
+         get_securities
+             http://127.0.0.1:12345/?command=get_securities&HftOrNot=NotHft
+             http://127.0.0.1:12345/?command=get_securities&HftOrNot=Hft
+         get_portfolio
+             http://127.0.0.1:12345/?command=get_portfolio&HftOrNot=NotHft
+             http://127.0.0.1:12345/?command=get_portfolio&HftOrNot=Hft
+         get_forts_positions
+             http://127.0.0.1:12345/?command=get_forts_positions&HftOrNot=NotHft
+             http://127.0.0.1:12345/?command=get_forts_positions&HftOrNot=Hft
+         gethistorydata
+            5-минутная история
+             http://127.0.0.1:12345/?command=gethistorydata&period=2&count=162&reset=true&HftOrNot=NotHft
+             часовая
+             http://127.0.0.1:12345/?command=gethistorydata&period=4&count=14&reset=true&HftOrNot=NotHft
+         neworder
+            http://127.0.0.1:12345?command=neworder&buysell=buy&orderprice=40000&quantity=1&HftOrNot=NotHft&ismarket=true
+            http://127.0.0.1:12345?command=neworder&buysell=sell&orderprice=90000&quantity=1&HftOrNot=NotHft&ismarket=true
+            http://127.0.0.1:12345?command=neworder&buysell=buy&orderprice=40000&quantity=1&HftOrNot=Hft&ismarket=true
+            http://127.0.0.1:12345?command=neworder&buysell=sell&orderprice=90000&quantity=1&HftOrNot=Hft&ismarket=true
+         newstoporder
+            http://127.0.0.1:12345?command=newstoporder&buysell=buy&orderprice=40000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&HftOrNot=NotHft
+            http://127.0.0.1:12345?command=newstoporder&buysell=sell&orderprice=90000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&HftOrNot=NotHft
+            http://127.0.0.1:12345?command=newstoporder&buysell=buy&orderprice=40000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&HftOrNot=Hft
+            http://127.0.0.1:12345?command=newstoporder&buysell=sell&orderprice=90000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&HftOrNot=Hft
+        newcondorder
+            http://127.0.0.1:12345?command=newcondorder&buysell=sell&orderprice=90000&quantity=1&cond_type=LastUp&cond_value=90000&condorder=true&HftOrNot=NotHft
+            http://127.0.0.1:12345?command=newcondorder&buysell=sell&orderprice=90000&quantity=1&cond_type=LastUp&cond_value=90000&condorder=true&HftOrNot=Hft
+        cancelorder
+            http://127.0.0.1:12345/?command=cancelorder&orderId=10703545&HftOrNot=NotHft
+            http://127.0.0.1:12345/?command=cancelorder&orderId=10703545&HftOrNot=Hft
+        cancelstoporder
+            http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
+            http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=Hft
+        * */
 let clientsocket;
 
 io.on('connection', function(socket) {
+    console.log('connection come');
+    console.log(`user connected with socket id: ${socket.id}`);
+
     //Whenever someone disconnects this piece of code executed
     clientsocket = socket;
     clientsocket.emit('conn', 'wait for this');
-    socket.on('disconnect', function() {});
+    socket.on('disconnect', function() {
+        console.log('disconnected');
+    });
 });
 
 // if we are sure to listen only to port 12345 we can remove this random port process.env.PORT
 const ip = '0.0.0.0';
 const port = process.env.PORT || 12345;
 
-http.listen(port, ip, function() {});
+http.listen(port, ip, function() {
+    console.log(`we are listening on port ${port}`);
+});
 
 function getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot) {
     return transaqConnector.functionConnect(HftOrNot, data => {
         const message = JSON.parse(xml2json.toJson(data));
 
+        //if message and other info exist
         if (!message) {
             return;
         }
+
+        // !message.sec_info_upd && !message.pits && !message.securities &&
         if (Date.now() - lastEmitTime > 5000) {
             clientsocket.emit('auth', {
                 checkStatus: true,
             });
 
+            // console.log(Date.now() - lastEmitTime)
             lastEmitTime = Date.now();
         }
         if (message.candles) {
             clientsocket.emit('show-widget', message);
         }
         clientsocket && clientsocket.emit('show-logs', message);
+
+        // !message.sec_info_upd && !message.pits && !message.securities &&
         if (Date.now() - lastEmitTime > 5000) {
             clientsocket.emit('auth', {
                 checkStatus: true,
             });
 
+            // console.log(Date.now() - lastEmitTime)
+
             lastEmitTime = Date.now();
         }
+
+        // set value if they exist
 
         if (message.client && message.client.id) {
             transaqConnector.objectAccountsAndDll.users[HftOrNot].Account =
@@ -151,6 +214,9 @@ function commandConnect(req, transaqConnector, result, HftOrNot) {
         port,
     };
 
+    //    console.log(`our client socket${clientsocket.id}`)
+    //    clientsocket.emit("before",'we are connecting you')
+
     const lastEmitTime = Date.now();
 
     return getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot);
@@ -211,6 +277,7 @@ function getAnyWorldByCommand(req, result, transaqConnector, params) {
         result = transaqConnector.functionSendOrderToBirga(req.query);
 
     //send that he mades new order socket io
+        //  clientsocket.emit("history-data",result);
     } else if (command === 'cancelorder' || command === 'cancelstoporder') {
         const { HftOrNot } = req.query;
 
@@ -249,6 +316,8 @@ function getCommand(req, res, command) {
         ].SendCommand(`<command id="${command}"/>`);
         const r = JSON.parse(xml2json.toJson(result));
 
+        // console.log(command, result);
+
         if (
             command === 'server_status' &&
       r &&
@@ -270,9 +339,16 @@ function getCommand(req, res, command) {
         });
     }
 
+    // если о твет = false, вывести ответ и завершить работу веб сервера
+    // console.log("status1")
+    // res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+    // res.json({ error: false, message: result });
+    //use socket
+
     if (result.indexOf('true') > -1) {
         res.end();
     } else {
+        // иначе экспортировать переменные, завершение вывода ответа и завершение работы веб сервера будет в transaqConnector.js
         workHereOrInTransaqConnector = false;
         module.exports.workHereOrInTransaqConnector = workHereOrInTransaqConnector;
         module.exports.commandText = command;
@@ -281,6 +357,7 @@ function getCommand(req, res, command) {
 
 route.get('/', (req, res) => {
     try {
+        // clientsocket.emit('another', "another one");
         const command = req.query.command;
 
         if (command !== undefined) {
@@ -288,8 +365,12 @@ route.get('/', (req, res) => {
         }
         module.exports.res = res;
     } catch (error) {
+        // clientsocket.emit("password-change-error",'Wrong login or password')
+        console.log(error);
+
         return res
             .status(500)
             .json({ status: error.status, message: error.message });
     }
 });
+/* eslint-disable no-console */
