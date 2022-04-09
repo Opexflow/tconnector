@@ -26,17 +26,24 @@ try {
             const asks = [];
 
             Object.keys(snapshot.quotes.quote).forEach(numberInSnapshot => {
-                const priceUpdate = Number(snapshot.quotes.quote[numberInSnapshot]['price']);
+                const priceUpdate = Number(
+                    snapshot.quotes.quote[numberInSnapshot]['price'],
+                );
 
                 // в snapshot попадают количества -1, по документации такие поля должны быть удалены
                 if (snapshot.quotes.quote[numberInSnapshot]['buy'] !== undefined) {
-                    amountUpdateBid = Number(snapshot.quotes.quote[numberInSnapshot]['buy']);
+                    amountUpdateBid = Number(
+                        snapshot.quotes.quote[numberInSnapshot]['buy'],
+                    );
                     if (amountUpdateBid > 0) {
                         bids[priceUpdate] = amountUpdateBid;
                     }
-                } else
-                if (snapshot.quotes.quote[numberInSnapshot]['sell'] !== undefined) {
-                    amountUpdateAsk = Number(snapshot.quotes.quote[numberInSnapshot]['sell']);
+                } else if (
+                    snapshot.quotes.quote[numberInSnapshot]['sell'] !== undefined
+                ) {
+                    amountUpdateAsk = Number(
+                        snapshot.quotes.quote[numberInSnapshot]['sell'],
+                    );
                     if (amountUpdateAsk > 0) {
                         asks[priceUpdate] = amountUpdateAsk;
                     }
@@ -102,7 +109,9 @@ try {
                     bids: {
                         '0': {
                             '0': Number(keysBids[keysBids.length - 1]),
-                            '1': savedGlass.quotes.quote.bids[Number(keysBids[keysBids.length - 1])],
+                            '1': savedGlass.quotes.quote.bids[
+                                Number(keysBids[keysBids.length - 1])
+                            ],
                         },
                     },
                     asks: {
@@ -121,36 +130,48 @@ try {
         // #endregion
 
         // #region общая функция обработки стакана
+
+        getUpdatedSavedGlass(savedGlass, updateGlass) {
+            Object.keys(updateGlass.quotes.quote).forEach(numberInUpdate => {
+                let amountUpdateBid = 0;
+                let amountUpdateAsk = 0;
+                const priceUpdate = Number(
+                    updateGlass.quotes.quote[numberInUpdate]['price'],
+                );
+
+                if (updateGlass.quotes.quote[numberInUpdate]['buy'] !== undefined) {
+                    amountUpdateBid = Number(
+                        updateGlass.quotes.quote[numberInUpdate]['buy'],
+                    );
+                    if (amountUpdateBid < 0) {
+                        // удаление из стакана
+                        // (savedGlass.quotes.quote['bids']).splice(priceUpdate, 1);
+                        delete savedGlass.quotes.quote['bids'][priceUpdate];
+                    } else {
+                        // изменение количества, если такое поле в массиве есть, или установка нового поля
+                        savedGlass.quotes.quote['bids'][priceUpdate] = amountUpdateBid;
+                    }
+                }
+                if (updateGlass.quotes.quote[numberInUpdate]['sell'] !== undefined) {
+                    amountUpdateAsk = Number(
+                        updateGlass.quotes.quote[numberInUpdate]['sell'],
+                    );
+                    if (amountUpdateAsk < 0) {
+                        // удаление из стакана
+                        delete savedGlass.quotes.quote['asks'][priceUpdate];
+                    } else {
+                        // изменение количества, если такое поле в массиве есть, или установка нового поля
+                        savedGlass.quotes.quote['asks'][priceUpdate] = amountUpdateAsk;
+                    }
+                }
+            });
+
+            return savedGlass;
+        }
         functionCommonWorkOnGlass(savedGlass, updateGlass) {
             if (updateGlass.quotes.quote.length > 0) {
                 // перебор обновления
-                Object.keys(updateGlass.quotes.quote).forEach(numberInUpdate => {
-                    let amountUpdateBid = 0;
-                    let amountUpdateAsk = 0;
-                    const priceUpdate = Number(updateGlass.quotes.quote[numberInUpdate]['price']);
-
-                    if (updateGlass.quotes.quote[numberInUpdate]['buy'] !== undefined) {
-                        amountUpdateBid = Number(updateGlass.quotes.quote[numberInUpdate]['buy']);
-                        if (amountUpdateBid < 0) {
-                            // удаление из стакана
-                            // (savedGlass.quotes.quote['bids']).splice(priceUpdate, 1);
-                            delete savedGlass.quotes.quote['bids'][priceUpdate];
-                        } else {
-                            // изменение количества, если такое поле в массиве есть, или установка нового поля
-                            savedGlass.quotes.quote['bids'][priceUpdate] = amountUpdateBid;
-                        }
-                    }
-                    if (updateGlass.quotes.quote[numberInUpdate]['sell'] !== undefined) {
-                        amountUpdateAsk = Number(updateGlass.quotes.quote[numberInUpdate]['sell']);
-                        if (amountUpdateAsk < 0) {
-                            // удаление из стакана
-                            delete savedGlass.quotes.quote['asks'][priceUpdate];
-                        } else {
-                            // изменение количества, если такое поле в массиве есть, или установка нового поля
-                            savedGlass.quotes.quote['asks'][priceUpdate] = amountUpdateAsk;
-                        }
-                    }
-                });
+                return this.getUpdatedSavedGlass(savedGlass, updateGlass);
             }
 
             return savedGlass;
@@ -169,10 +190,7 @@ try {
         }
 
         // обновление открытых ордеров
-        updateOpenOrders(
-            objectOrders,
-            HftOrNot,
-        ) {
+        updateOpenOrders(objectOrders, HftOrNot) {
             this.orders[HftOrNot] = objectOrders;
         }
 
@@ -187,10 +205,7 @@ try {
         }
 
         // обновление максимальных цен
-        updateMaxPrices(
-            maxPrices,
-            HftOrNot,
-        ) {
+        updateMaxPrices(maxPrices, HftOrNot) {
             this.maxPrices[HftOrNot] = maxPrices;
         }
     }
@@ -201,13 +216,13 @@ try {
 
     // #region обработка поступающего стакана
     /**
-     * @this {workOnGlass}
-     * @param glass object
-     *
-     * @return null
-     * */
+   * @this {workOnGlass}
+   * @param glass object
+   *
+   * @return null
+   * */
     function workOnGlass(glass) {
-        // #region стакан
+    // #region стакан
         if (Object.keys(glass)['0'] === 'quotes') {
             // возможно, что если один массив, то ['0'] не делается биржей
             // if (glass.quotes.quote === undefined) {
@@ -233,7 +248,10 @@ try {
                 // #endregion
             } else {
                 // обновление стакана
-                const glassAfterUpdate = finamClass.functionUpdateGlass(commonPairName, glass);
+                const glassAfterUpdate = finamClass.functionUpdateGlass(
+                    commonPairName,
+                    glass,
+                );
 
                 // #region запись котировок в базу
                 // mysqlModule.functionSaveGlassInDb(commonPairName, birgaNameVariableFinam, glassAfterUpdate);
@@ -250,24 +268,17 @@ try {
 
     // #region заполнение массивов открытых заявок
     /**
-     * @this {fillOpenOrdersObject}
-     * @param openOrdersObject object
-     * @param type string
-     * @param tempArray array
-     *
-     * @return null
-     * */
-    function fillOpenOrdersObject(
-        openOrdersObject,
-        type,
-        tempArray,
-    ) {
-        // массив заявок уже есть
-        // Это на случай, если tempArray - один объект из одной транзакции
-        if (
-            typeof (tempArray) === 'object' &&
-            Array.isArray(tempArray) === false
-        ) {
+   * @this {fillOpenOrdersObject}
+   * @param openOrdersObject object
+   * @param type string
+   * @param tempArray array
+   *
+   * @return null
+   * */
+    function fillOpenOrdersObject(openOrdersObject, type, tempArray) {
+    // массив заявок уже есть
+    // Это на случай, если tempArray - один объект из одной транзакции
+        if (typeof tempArray === 'object' && Array.isArray(tempArray) === false) {
             const saveTemp = tempArray;
 
             tempArray = [];
@@ -275,7 +286,10 @@ try {
         }
 
         // true - массив - пустой, false - не пустой
-        if (Object.keys(openOrdersObject[type]).length !== 0 && openOrdersObject[type].constructor === Object) {
+        if (
+            Object.keys(openOrdersObject[type]).length !== 0 &&
+      openOrdersObject[type].constructor === Object
+        ) {
             // есть ли поле новой транзакции в массиве
             for (const numberTemp in tempArray) {
                 let isFieldExists = false;
@@ -292,8 +306,8 @@ try {
                         isFieldExists = true;
                         const statusOld = openOrdersObject[type][number].status;
 
-                        openOrdersObject[type][number].status = tempArray[numberTemp].status;
-                        console.log(`status ${ statusOld } ${ transactionId } изменен на ${ tempArray[numberTemp].status}`);
+                        openOrdersObject[type][number].status =
+              tempArray[numberTemp].status;
                     }
                 });
 
@@ -324,8 +338,7 @@ try {
 
     // #endregion
 } catch (e) {
-    const err = `${e.name }:${ e.message }\n${ e.stack}`;
+    const err = `${e.name}:${e.message}\n${e.stack}`;
 
-    messageForLog = `ошибка FinamClass.js ${ err}`;
-    console.log(messageForLog);
+    // messageForLog = `ошибка FinamClass.js ${ err}`;
 }

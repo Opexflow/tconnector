@@ -1,4 +1,5 @@
 // #region переменные
+/* eslint-disable no-console */
 const ffi = require('ffi-cross');
 const ref = require('ref-napi');
 const xml2json = require('xml2json');
@@ -6,6 +7,10 @@ const fs = require('fs');
 const path = require('path');
 const finamClass = require('./FinamClass.js');
 const functions = require('../common_sevice_functions/functions.js');
+
+const closeCommandStr = '</command>';
+const securityStr = '<security>';
+const closeSecurityStr = '</security>';
 
 // \различные функции
 const config = require(path.join(process.cwd(), 'config.json'));
@@ -110,6 +115,360 @@ let startTimeTimer = new Date().getTime();
 
 finamClass.saveMaxPrices(maxPrices);
 
+function sameCodeBlock(string, commandText, HftOrNot) {
+    const messageLog = getConvertedMessageFromCommand(
+        string,
+        commandText,
+        HftOrNot,
+    );
+
+    functionCloseWebServer(messageLog, string);
+}
+
+function getConvertedMessageFromCommand(string, commandText, HftOrNot) {
+    return (
+    `${HftOrNot} ` +
+    `Результат выполнения команды <br>\r\n${commandText
+        .replace(/</g, '&#706;')
+        .replace(/>/g, '&#707;')}<br>\r\n` +
+    ` = <br>\r\n${string
+        .replace(/</g, '&#706;')
+        .replace(/>/g, '&#707;')}<br>\r\n`
+    );
+}
+
+function inputDataFnSubMain(messageLog, dateHuman, string, unixTime, mainFile) {
+    if (getHistoryByTimer === false) {
+        functionCloseWebServer(messageLog, string);
+    } else {
+    // это история по таймеру
+        messageLog = `${dateHuman}<br>\r\n ${messageLog}`;
+
+        const object = JSON.parse(string);
+
+        /** @var object.candles object */
+        let tableName = 'history_1_hour';
+
+        // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
+        const contractString = functionActiveContractString();
+
+        // для 5-минутной истории создать новую таблицу
+        let addId = '';
+        let addIdValue = '';
+
+        if (object.candles.period === '2') {
+            const arraySplit = object.candles.candle['0'].date.split(' ');
+            const arraySplitDate = arraySplit['0'].split('.');
+
+            tableName = `history_5min_${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']}`;
+
+            // mysqlModule.functionCreateTable(tableName);
+        }
+        let idInDb = 1;
+
+        Object.keys(object.candles.candle).forEach(number => {
+            // нужно явно указать номер строки в таблице, иначе начинаются не с единицы
+            if (object.candles.period === '2') {
+                addId = '`id`, ';
+                addIdValue = `${idInDb}, `;
+            }
+            const arraySplit = object.candles.candle[number].date.split(' ');
+            const arraySplitDate = arraySplit['0'].split('.');
+            const datetimeHuman = `${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']} ${arraySplit['1']}`;
+
+            unixTime = Math.round(new Date(datetimeHuman).getTime()) / 1000;
+
+            /** @var object.candle object */
+            const stringInsert =
+        `INSERT INTO \`${tableName}\` ` +
+        `(${addId}\`birga\`, \`pair\`, \`unix_time\`, \`datetime_human\`, \`open\`, \`low\`, \`high\`, \`close\`, \`volume\`) ` +
+        'VALUES ' +
+        `(${addIdValue} 'Finam', '${contractString}', ${unixTime}, ` +
+        `'${datetimeHuman}', ${object.candles.candle[number].open}, ${object.candles.candle[number].low}, ${object.candles.candle[number].high}, ${object.candles.candle[number].close}, ${object.candles.candle[number].volume})`;
+
+            // mysqlModule.functionWriteInDb(stringInsert, 'connectionForWriteHistory');
+            idInDb++;
+        });
+
+        // сброс переменных
+        mainFile.workHereOrInTransaqConnector = true;
+        mainFile.commandText = '';
+    }
+}
+
+function inputDataMainFileWorkHere(
+    HftOrNot,
+    dateHuman,
+    object,
+    string,
+    unixTime,
+) {
+    /** @var object.news_header string */
+    /** @var object.sec_info_upd string */
+    if (
+        object.quotes === undefined &&
+    object.quotations === undefined &&
+    object.news_header === undefined &&
+    object.sec_info_upd === undefined
+    ) {
+    // vvv отладочное
+    // writeToFile(string, 'C:/Users/Administrator/Project/robot/log/' + HftOrNot + '/log.log');
+    // console.log(HftOrNot + ' ' + string);
+    }
+
+    // #region завершение вывода ответа и завершение работы веб сервера с server.js
+    // передано из сервера из файла server.js, вывести результат выполнения команды и завершить работу веб сервера
+    if (mainFile.workHereOrInTransaqConnector === false) {
+        const { commandText } = mainFile;
+
+        if (string.indexOf(commandText) > -1) {
+            sameCodeBlock(string, commandText, HftOrNot);
+        } else if (
+            commandText.indexOf('gethistorydata') > -1 &&
+      string.indexOf('candles') > -1
+        ) {
+            const messageLog = getConvertedMessageFromCommand(
+                string,
+                commandText,
+                HftOrNot,
+            );
+
+            // историю можно получать по таймеру, в этом случае НЕ нужно вызывать functionCloseWebServer
+            if (object.candles.period === '2') {
+                const arraySplit = object.candles.candle['0'].date.split(' ');
+                const arraySplitDate = arraySplit['0'].split('.');
+                const tableName = `history_5min_${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']}`;
+
+                // mysqlModule.functionCreateTable(tableName);
+            }
+
+            //Function Call
+            inputDataFnSubMain(messageLog, dateHuman, string, unixTime, mainFile);
+
+            // сбросить переменную getHistoryByTimer
+            getHistoryByTimer = false;
+        } else if (
+            commandText.indexOf('get_portfolio') > -1 &&
+      string.indexOf('portfolio') > -1
+        ) {
+            console.log('portfolio');
+
+            // возврат
+            // {"portfolio_tplus":{"client":"11B4B/11B4B","coverage_fact":"1000000.00","coverage_plan":"1000000.00","coverage_crit":"1000000.00","open_equity":"7567.15","equity":"7567.15","cover":"7567.15","init_margin":"0.00",
+            // "pnl_income":"0.00","pnl_intraday":"0.00","leverage":"1.00","margin_level":"0.00","money":{"open_balance":"7567.15","bought":"0.00","sold":"0.00","balance":"7567.15","settled":"0.00","tax":"0.00",
+            // "value_part":{"register":"T0","open_balance":"7567.15","bought":"0.00","sold":"0.00","balance":"7567.15","settled":"0.00"}}}}
+            sameCodeBlock(string, commandText, HftOrNot);
+        }
+    }
+}
+
+function inputDataCheckLastIf(HftOrNot, dateHuman, object, string, unixTime) {
+    // количество лотов для закрытия открытых позици
+
+    /** @var object.positions.forts_position object */
+    /** @var object.positions.forts_position.todaybuy integer */
+    /** @var object.positions.forts_position.todaysell integer */
+    const diffOpenPositions = Math.abs(
+        Number(object.positions.forts_position.todaybuy) -
+      Number(object.positions.forts_position.todaysell),
+    );
+
+    if (diffOpenPositions === 0) {
+        isCheckFortsPosition = false;
+        const message = `${HftOrNot} ${dateHuman} лотов для закрытия открытых позиций нет. isCheckFortsPosition = false`;
+
+        console.log(message);
+        writeToFile(message, path.join(process.cwd(), `log/${HftOrNot}/log.log`));
+    } else {
+        isCheckFortsPosition = false;
+        const lots = Math.abs(
+            Number(object.positions.forts_position.todaybuy) -
+        Number(object.positions.forts_position.todaysell),
+        );
+        const savedMaxPrices = finamClass.getMaxPrices([HftOrNot]);
+        const clientId = objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
+        let orderprice = 0;
+        let buysell = '';
+        let side = '';
+        let sideClose = '';
+
+        if (
+            Number(object.positions.forts_position.todaybuy) >
+      Number(object.positions.forts_position.todaysell)
+        ) {
+            orderprice = savedMaxPrices.maxPriceLow;
+            buysell = 'sell';
+            side = 'продажа';
+            sideClose = 'покупки';
+        } else {
+            orderprice = savedMaxPrices.maxPriceHigh;
+            buysell = 'buy';
+            side = 'покупка';
+            sideClose = 'продажи';
+        }
+        const queryObject = {
+            client: clientId,
+            buysell,
+            orderprice,
+            quantity: lots,
+            ismarket: 'true',
+            HftOrNot,
+        };
+
+        const currentDate = new Date().toISOString().slice(0, 10);
+        const arrayDate = currentDate.split('-');
+        const currentUtcDateUnix = new Date(
+            Date.UTC(
+                Number(arrayDate['0']),
+                Number(arrayDate['1']) - 1,
+                Number(arrayDate['2']),
+            ),
+        ).getTime();
+        const unikString =
+      `${currentUtcDateUnix}_` +
+      'todaybuy' +
+      `_${Number(object.positions.forts_position.todaybuy)}_` +
+      'todaysell' +
+      `_${Number(object.positions.forts_position.todaysell)}`;
+
+        // проверка, не было ли уже отправки ордера для такого закрытия
+        if (!arrayUnikStringCloseOpenPositions.includes(unikString)) {
+            arrayUnikStringCloseOpenPositions.push(unikString);
+
+            const message =
+        `${HftOrNot} ${dateHuman} ${side} ${lots} лотов для закрытия открытой ${sideClose}\r\n` +
+        `diffOpenPositions = ${diffOpenPositions}, ` +
+        `todaybuy = ${object.positions.forts_position.todaybuy}, ` +
+        `todaysell = ${object.positions.forts_position.todaysell}\r\n` +
+        `object = ${JSON.stringify(object)}\r\n` +
+        `queryObject = ${JSON.stringify(queryObject)}\r\n` +
+        '\r\n';
+
+            writeToFile(message, path.join(process.cwd(), `log/${HftOrNot}/log.log`));
+
+            functionSendOrderToBirga(queryObject);
+        } else {
+            const message =
+        `${HftOrNot} ` +
+        'Повторная попытка отправить уже отправленное закрытие, ЗАЯВКА НА БИРЖУ НЕ ОТПРАВЛЕНА!' +
+        `\r\n${dateHuman} ${side} ${lots} лотов для закрытия открытой ${sideClose}\r\n` +
+        `diffOpenPositions = ${diffOpenPositions}, ` +
+        `todaybuy = ${object.positions.forts_position.todaybuy}, ` +
+        `todaysell = ${object.positions.forts_position.todaysell}\r\n` +
+        `object = ${JSON.stringify(object)}\r\n` +
+        `queryObject = ${JSON.stringify(queryObject)}\r\n` +
+        '\r\n';
+
+            console.log(message);
+            writeToFile(message, path.join(process.cwd(), `log/${HftOrNot}/log.log`));
+        }
+    }
+}
+
+function finalClassUpdateFN(HftOrNot, dateHuman, object, string, unixTime) {
+    // массив открытых ордеров
+    /** @var object.orders.stoporder array */
+    openOrdersObject = finamClass.getOpenOrders(HftOrNot);
+    Object.keys(typesOrdersArray).forEach(number => {
+        const orderType = typesOrdersArray[number];
+
+        if (object.orders[orderType] !== undefined) {
+            openOrdersObject = finamClass.fillOpenOrdersObject(
+                openOrdersObject,
+                orderType,
+                object.orders[orderType],
+            );
+        }
+    });
+
+    // сохранить массив ордеров после обработки
+    finamClass.updateOpenOrders(openOrdersObject, HftOrNot);
+}
+
+function subscribeOnGlassFn(HftOrNot, dateHuman, object, string, unixTime) {
+    if (object.server_status.connected === 'true' && subscribeOnGlass[HftOrNot]) {
+        console.log(`${HftOrNot} ${string}`);
+        if (HftOrNot === 'Hft') {
+            // команда запроса стакана, чтобы не дублировать, только для Hft
+            // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
+            const contractString = functionActiveContractString();
+            const result = functionSubscribeAndUnSubscribe(
+                'subscribe',
+                'quotes',
+                contractString,
+                HftOrNot,
+            );
+
+            console.log(`${HftOrNot} ` + `glassSubscribeResult ${result}`);
+        }
+
+        // //команда запроса тиков сделок
+        // // let result = functionSubscribeAndUnSubscribe('subscribe', 'alltrades', seccode);
+        // console.log(HftOrNot + ' ' + 'alltradesSubscribeResult ' + result);
+        // команда запроса показателей торгов по инструментам, в ответе нужны поля:
+        // <high>Максимальная цена сделки :double</high>
+        // <low>Минимальная цена сделки :double</low>
+        // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
+        const contractString = functionActiveContractString();
+        const result = functionSubscribeAndUnSubscribe(
+            'subscribe',
+            'quotations',
+            contractString,
+            HftOrNot,
+        );
+
+        subscribeOnGlass[HftOrNot] = false;
+    } else {
+    // подключений к бирже с одним логином может быть только одно
+        console.log(`${HftOrNot} ` + `Ошибка server_status ${string}`);
+    }
+}
+
+function inputDataFn(HftOrNot, dateHuman, object, string, unixTime) {
+    inputDataMainFileWorkHere(HftOrNot, dateHuman, object, string, unixTime);
+
+    // #endregion
+    /** @var object.orders object */
+    if (object.orders !== undefined) {
+        finalClassUpdateFN(HftOrNot, dateHuman, object, string, unixTime);
+    } else if (object.server_status !== undefined) {
+    // vvv проверка обязательна
+    /** @var object.server_status string */
+
+        subscribeOnGlassFn(HftOrNot, dateHuman, object, string, unixTime);
+    } else if (object.quotes !== undefined && HftOrNot === 'Hft') {
+    // стакан
+    // обработка стакана, чтобы не дублировать, только для Hft
+        finamClass.workOnGlass(object);
+
+    // let humanDate = new Date(unixTime).toISOString().replace('Z', '');
+    // console.log(HftOrNot + ' ' + humanDate + ' quotes ' + string + '\r\n');
+    } else if (object.quotations !== undefined) {
+    // показатели торгов по инструментам, мксимальная и минимальная цена сессии, нужны для выставления рыночных ордеров
+    /** @var object.quotations object */
+    /** @var object.quotations.quotation object */
+        if (
+            object.quotations.quotation.high !== undefined &&
+      object.quotations.quotation.low !== undefined
+        ) {
+            // let humanDate = new Date(unixTime).toISOString().replace('Z', '');
+            // console.log(HftOrNot + ' ' + humanDate + ' quotations ' + string + '\r\n');
+            maxPrices = {
+                maxPriceHigh: object.quotations.quotation.high,
+                maxPriceLow: object.quotations.quotation.low,
+            };
+            finamClass.updateMaxPrices(maxPrices, HftOrNot);
+        }
+    } else if (
+        object.positions !== undefined &&
+    object.positions.forts_position !== undefined &&
+    isCheckFortsPosition === true
+    ) {
+    // позиции
+        inputDataCheckLastIf(HftOrNot, dateHuman, object, string, unixTime);
+    }
+}
+
 // #endregion
 
 // #region callback обрабатывает и hft и не hft
@@ -120,10 +479,13 @@ finamClass.saveMaxPrices(maxPrices);
  *
  * @return null
  * */
-function functionCallback(inputData, HftOrNot) {
+function functionCallback(msg, HftOrNot) {
     try {
+    /** @var ref.readCString function */
+        const inputData = ref.readCString(msg, 0);
+
         if (inputData) {
-            let unixTime = new Date().getTime();
+            const unixTime = new Date().getTime();
             const dateHuman = new Date(unixTime)
                 .toISOString()
                 .replace('T', ' ')
@@ -131,375 +493,9 @@ function functionCallback(inputData, HftOrNot) {
             const string = xml2json.toJson(inputData);
             const object = JSON.parse(string);
 
-            /** @var object.news_header string */
-            /** @var object.sec_info_upd string */
-            if (
-                object.quotes === undefined &&
-        object.quotations === undefined &&
-        object.news_header === undefined &&
-        object.sec_info_upd === undefined
-            ) {
-
-                // vvv отладочное
-                // writeToFile(string, 'C:/Users/Administrator/Project/robot/log/' + HftOrNot + '/log.log');
-                // console.log(HftOrNot + ' ' + string);
-            }
-
-            // #region завершение вывода ответа и завершение работы веб сервера с server.js
-            // передано из сервера из файла server.js, вывести результат выполнения команды и завершить работу веб сервера
-            if (mainFile.workHereOrInTransaqConnector === false) {
-                const { commandText } = mainFile;
-
-                if (string.indexOf(commandText) > -1) {
-                    const messageLog =
-            `${HftOrNot} ` +
-            `Результат выполнения команды <br>\r\n${commandText
-                .replace(/</g, '&#706;')
-                .replace(/>/g, '&#707;')}<br>\r\n` +
-            ` = <br>\r\n${string
-                .replace(/</g, '&#706;')
-                .replace(/>/g, '&#707;')}<br>\r\n`;
-
-                    debugger;
-                    functionCloseWebServer(messageLog, string);
-                } else if (
-                    commandText.indexOf('gethistorydata') > -1 &&
-          string.indexOf('candles') > -1
-                ) {
-                    let messageLog =
-            `${HftOrNot} ` +
-            `Результат выполнения команды <br>\r\n${commandText
-                .replace(/</g, '&#706;')
-                .replace(/>/g, '&#707;')}<br>\r\n` +
-            ` = <br>\r\n${string
-                .replace(/</g, '&#706;')
-                .replace(/>/g, '&#707;')}<br>\r\n`;
-
-                    // историю можно получать по таймеру, в этом случае НЕ нужно вызывать functionCloseWebServer
-                    if (object.candles.period === '2') {
-                        const arraySplit = object.candles.candle['0'].date.split(' ');
-                        const arraySplitDate = arraySplit['0'].split('.');
-                        const tableName = `history_5min_${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']}`;
-
-                        // mysqlModule.functionCreateTable(tableName);
-                    }
-
-                    if (getHistoryByTimer === false) {
-                        debugger;
-                        functionCloseWebServer(messageLog, string);
-                    } else {
-                        // это история по таймеру
-                        messageLog = `${dateHuman}<br>\r\n ${messageLog}`;
-                        console.log(
-              `${HftOrNot} ${messageLog
-                  .replace(/&#706;/g, '<')
-                  .replace(/&#707;/g, '>')
-                  .replace(/<br>/g, '')}`,
-                        );
-                        const object = JSON.parse(string);
-
-                        /** @var object.candles object */
-                        let tableName = 'history_1_hour';
-
-                        // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
-                        const contractString = functionActiveContractString();
-
-                        // для 5-минутной истории создать новую таблицу
-                        let addId = '';
-                        let addIdValue = '';
-
-                        if (object.candles.period === '2') {
-                            const arraySplit = object.candles.candle['0'].date.split(' ');
-                            const arraySplitDate = arraySplit['0'].split('.');
-
-                            tableName = `history_5min_${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']}`;
-
-                            // mysqlModule.functionCreateTable(tableName);
-                        }
-                        let idInDb = 1;
-
-                        Object.keys(object.candles.candle).forEach(number => {
-                            // нужно явно указать номер строки в таблице, иначе начинаются не с единицы
-                            if (object.candles.period === '2') {
-                                addId = '`id`, ';
-                                addIdValue = `${idInDb}, `;
-                            }
-                            const arraySplit = object.candles.candle[number].date.split(' ');
-                            const arraySplitDate = arraySplit['0'].split('.');
-                            const datetimeHuman = `${arraySplitDate['2']}-${arraySplitDate['1']}-${arraySplitDate['0']} ${arraySplit['1']}`;
-
-                            unixTime = Math.round(new Date(datetimeHuman).getTime()) / 1000;
-
-                            /** @var object.candle object */
-                            const stringInsert =
-                `INSERT INTO \`${tableName}\` ` +
-                `(${addId}\`birga\`, \`pair\`, \`unix_time\`, \`datetime_human\`, \`open\`, \`low\`, \`high\`, \`close\`, \`volume\`) ` +
-                'VALUES ' +
-                `(${addIdValue} 'Finam', '${contractString}', ${unixTime}, ` +
-                `'${datetimeHuman}', ${object.candles.candle[number].open}, ${object.candles.candle[number].low}, ${object.candles.candle[number].high}, ${object.candles.candle[number].close}, ${object.candles.candle[number].volume})`;
-
-                            // mysqlModule.functionWriteInDb(stringInsert, 'connectionForWriteHistory');
-                            idInDb++;
-                        });
-
-                        // сброс переменных
-                        mainFile.workHereOrInTransaqConnector = true;
-                        mainFile.commandText = '';
-                    }
-
-                    // сбросить переменную getHistoryByTimer
-                    getHistoryByTimer = false;
-                } else if (
-                    commandText.indexOf('get_portfolio') > -1 &&
-          string.indexOf('portfolio') > -1
-                ) {
-                    console.log('portfolio');
-
-                    // возврат
-                    // {"portfolio_tplus":{"client":"11B4B/11B4B","coverage_fact":"1000000.00","coverage_plan":"1000000.00","coverage_crit":"1000000.00","open_equity":"7567.15","equity":"7567.15","cover":"7567.15","init_margin":"0.00",
-                    // "pnl_income":"0.00","pnl_intraday":"0.00","leverage":"1.00","margin_level":"0.00","money":{"open_balance":"7567.15","bought":"0.00","sold":"0.00","balance":"7567.15","settled":"0.00","tax":"0.00",
-                    // "value_part":{"register":"T0","open_balance":"7567.15","bought":"0.00","sold":"0.00","balance":"7567.15","settled":"0.00"}}}}
-                    const messageLog =
-            `${HftOrNot} ` +
-            `Результат выполнения команды <br>\r\n${commandText
-                .replace(/</g, '&#706;')
-                .replace(/>/g, '&#707;')}<br>\r\n` +
-            ` = <br>\r\n${string
-                .replace(/</g, '&#706;')
-                .replace(/>/g, '&#707;')}<br>\r\n`;
-
-                    console.log(messageLog);
-                    debugger;
-                    functionCloseWebServer(messageLog, string);
-                }
-            }
-
-            // #endregion
-
-            /** @var object.orders object */
-            if (object.orders !== undefined) {
-                // массив открытых ордеров
-                /** @var object.orders.stoporder array */
-                openOrdersObject = finamClass.getOpenOrders(HftOrNot);
-                Object.keys(typesOrdersArray).forEach(number => {
-                    const orderType = typesOrdersArray[number];
-
-                    if (object.orders[orderType] !== undefined) {
-                        openOrdersObject = finamClass.fillOpenOrdersObject(
-                            openOrdersObject,
-                            orderType,
-                            object.orders[orderType],
-                        );
-                    }
-                });
-
-                // сохранить массив ордеров после обработки
-                finamClass.updateOpenOrders(openOrdersObject, HftOrNot);
-            }
-
-            // vvv проверка обязательна
-            /** @var object.server_status string */
-            else if (object.server_status !== undefined) {
-                // vvv проверка обязательна
-                if (object.server_status.connected === 'true') {
-                    if (subscribeOnGlass[HftOrNot]) {
-                        console.log(`${HftOrNot} ${string}`);
-                        if (HftOrNot === 'Hft') {
-                            // команда запроса стакана, чтобы не дублировать, только для Hft
-                            // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
-                            const contractString = functionActiveContractString();
-                            const result = functionSubscribeAndUnSubscribe(
-                                'subscribe',
-                                'quotes',
-                                contractString,
-                                HftOrNot,
-                            );
-
-                            console.log(`${HftOrNot} ` + `glassSubscribeResult ${result}`);
-                        }
-
-                        // //команда запроса тиков сделок
-                        // // let result = functionSubscribeAndUnSubscribe('subscribe', 'alltrades', seccode);
-                        // console.log(HftOrNot + ' ' + 'alltradesSubscribeResult ' + result);
-                        // команда запроса показателей торгов по инструментам, в ответе нужны поля:
-                        // <high>Максимальная цена сделки :double</high>
-                        // <low>Минимальная цена сделки :double</low>
-                        // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
-                        const contractString = functionActiveContractString();
-                        const result = functionSubscribeAndUnSubscribe(
-                            'subscribe',
-                            'quotations',
-                            contractString,
-                            HftOrNot,
-                        );
-
-                        console.log(`${HftOrNot} ` + `quotationsSubscribeResult ${result}`);
-                        subscribeOnGlass[HftOrNot] = false;
-                    }
-                } else {
-                    // подключений к бирже с одним логином может быть только одно
-                    console.log(`${HftOrNot} ` + `Ошибка server_status ${string}`);
-                }
-            }
-
-            // стакан
-            else if (object.quotes !== undefined) {
-                // обработка стакана, чтобы не дублировать, только для Hft
-                if (HftOrNot === 'Hft') {
-                    finamClass.workOnGlass(object);
-                }
-
-                // let humanDate = new Date(unixTime).toISOString().replace('Z', '');
-                // console.log(HftOrNot + ' ' + humanDate + ' quotes ' + string + '\r\n');
-            }
-
-            // показатели торгов по инструментам, мксимальная и минимальная цена сессии, нужны для выставления рыночных ордеров
-            /** @var object.quotations object */
-            /** @var object.quotations.quotation object */
-            else if (object.quotations !== undefined) {
-                if (
-                    object.quotations.quotation.high !== undefined &&
-          object.quotations.quotation.low !== undefined
-                ) {
-                    // let humanDate = new Date(unixTime).toISOString().replace('Z', '');
-                    // console.log(HftOrNot + ' ' + humanDate + ' quotations ' + string + '\r\n');
-                    maxPrices = {
-                        maxPriceHigh: object.quotations.quotation.high,
-                        maxPriceLow: object.quotations.quotation.low,
-                    };
-                    finamClass.updateMaxPrices(maxPrices, HftOrNot);
-                }
-            }
-
-            // позиции
-            else if (object.positions !== undefined) {
-                if (object.positions.forts_position !== undefined) {
-                    console.log(`${HftOrNot} ${string}`);
-
-                    // количество лотов для закрытия открытых позици
-                    if (isCheckFortsPosition === true) {
-                        /** @var object.positions.forts_position object */
-                        /** @var object.positions.forts_position.todaybuy integer */
-                        /** @var object.positions.forts_position.todaysell integer */
-                        const diffOpenPositions = Math.abs(
-                            Number(object.positions.forts_position.todaybuy) -
-                Number(object.positions.forts_position.todaysell),
-                        );
-
-                        if (diffOpenPositions === 0) {
-                            isCheckFortsPosition = false;
-                            const message = `${HftOrNot} ${dateHuman} лотов для закрытия открытых позиций нет. isCheckFortsPosition = false`;
-
-                            console.log(message);
-                            writeToFile(
-                                message,
-                                path.join(process.cwd(), `log/${HftOrNot}/log.log`),
-                            );
-                        } else {
-                            isCheckFortsPosition = false;
-                            const lots = Math.abs(
-                                Number(object.positions.forts_position.todaybuy) -
-                  Number(object.positions.forts_position.todaysell),
-                            );
-                            const savedMaxPrices = finamClass.getMaxPrices([HftOrNot]);
-                            const clientId =
-                objectAccountsAndDll.users[HftOrNot].Account.clientId_1;
-                            let orderprice = 0;
-                            let buysell = '';
-                            let side = '';
-                            let sideClose = '';
-
-                            if (
-                                Number(object.positions.forts_position.todaybuy) >
-                Number(object.positions.forts_position.todaysell)
-                            ) {
-                                orderprice = savedMaxPrices.maxPriceLow;
-                                buysell = 'sell';
-                                side = 'продажа';
-                                sideClose = 'покупки';
-                            } else {
-                                orderprice = savedMaxPrices.maxPriceHigh;
-                                buysell = 'buy';
-                                side = 'покупка';
-                                sideClose = 'продажи';
-                            }
-                            const queryObject = {
-                                client: clientId,
-                                buysell,
-                                orderprice,
-                                quantity: lots,
-                                ismarket: 'true',
-                                HftOrNot,
-                            };
-
-                            const currentDate = new Date().toISOString().slice(0, 10);
-                            const arrayDate = currentDate.split('-');
-                            const currentUtcDateUnix = new Date(
-                                Date.UTC(
-                                    Number(arrayDate['0']),
-                                    Number(arrayDate['1']) - 1,
-                                    Number(arrayDate['2']),
-                                ),
-                            ).getTime();
-                            const unikString =
-                `${currentUtcDateUnix}_` +
-                'todaybuy' +
-                `_${Number(object.positions.forts_position.todaybuy)}_` +
-                'todaysell' +
-                `_${Number(object.positions.forts_position.todaysell)}`;
-
-                            // проверка, не было ли уже отправки ордера для такого закрытия
-                            if (!arrayUnikStringCloseOpenPositions.includes(unikString)) {
-                                arrayUnikStringCloseOpenPositions.push(unikString);
-
-                                const message =
-                  `${HftOrNot} ${dateHuman} ${side} ${lots} лотов для закрытия открытой ${sideClose}\r\n` +
-                  `diffOpenPositions = ${diffOpenPositions}, ` +
-                  `todaybuy = ${object.positions.forts_position.todaybuy}, ` +
-                  `todaysell = ${object.positions.forts_position.todaysell}\r\n` +
-                  `object = ${JSON.stringify(object)}\r\n` +
-                  `queryObject = ${JSON.stringify(queryObject)}\r\n` +
-                  '\r\n';
-
-                                console.log(message);
-                                writeToFile(
-                                    message,
-                                    path.join(process.cwd(), `log/${HftOrNot}/log.log`),
-                                );
-
-                                functionSendOrderToBirga(queryObject);
-                            } else {
-                                const message =
-                  `${HftOrNot} ` +
-                  'Повторная попытка отправить уже отправленное закрытие, ЗАЯВКА НА БИРЖУ НЕ ОТПРАВЛЕНА!' +
-                  `\r\n${dateHuman} ${side} ${lots} лотов для закрытия открытой ${sideClose}\r\n` +
-                  `diffOpenPositions = ${diffOpenPositions}, ` +
-                  `todaybuy = ${object.positions.forts_position.todaybuy}, ` +
-                  `todaysell = ${object.positions.forts_position.todaysell}\r\n` +
-                  `object = ${JSON.stringify(object)}\r\n` +
-                  `queryObject = ${JSON.stringify(queryObject)}\r\n` +
-                  '\r\n';
-
-                                console.log(message);
-                                writeToFile(
-                                    message,
-                                    path.join(process.cwd(), `log/${HftOrNot}/log.log`),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-
-            // isCheckFortsPosition = true positions
-            // сделки
-            // if (object.alltrades !== undefined) {
-            //     console.log(HftOrNot + ' ' + 'trades ' + string + '\r\n');
-            // }
+            inputDataFn(HftOrNot, dateHuman, object, string, unixTime);
         }
-    } catch (e) {
-        console.log(e);
-    }
+    } catch (e) {}
 
     return null;
 }
@@ -550,9 +546,8 @@ async function functionConnect(HftOrNot, callback) {
         ffi.types.bool,
         [ref.refType(ffi.types.CString)],
         msg => {
-            const data = ref.readCString(msg, 0);
-            callback(data, HftOrNot);
-            functionCallback(data, HftOrNot);
+            callback(ref.readCString(msg, 0), HftOrNot);
+            functionCallback(msg, HftOrNot);
             if (msg !== undefined) {
                 objectAccountsAndDll['afterInitialize'][HftOrNot].FreeMemory(msg);
             }
@@ -578,36 +573,42 @@ async function functionConnect(HftOrNot, callback) {
     });
 
     try {
-        //converting to async await
+    //converting to async await
         const init = await promise;
 
         console.log(init);
         let SetCallback;
 
         if (HftOrNot === 'Hft') {
-            SetCallback = await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback);
+            SetCallback = await objectAccountsAndDll['afterInitialize'][
+                HftOrNot
+            ].SetCallback(ffiCallback);
         }
         if (HftOrNot === 'NotHft') {
-            SetCallback = await objectAccountsAndDll['afterInitialize'][HftOrNot].SetCallback(ffiCallback);
+            SetCallback = await objectAccountsAndDll['afterInitialize'][
+                HftOrNot
+            ].SetCallback(ffiCallback);
         }
         console.log(`Promise ${HftOrNot} init ${init}`);
 
         console.log(`Promise ${HftOrNot} SetCallback ${SetCallback}`);
 
         const myXMLConnectString =
-    `${'<command id="connect">' + '<login>'}${
-      objectAccountsAndDll['users'][HftOrNot].Account.login
-    }</login>` +
-    `<password>${objectAccountsAndDll['users'][HftOrNot].Account.password}</password>` +
-    `<host>${objectAccountsAndDll['servers'][HftOrNot].host}</host>` +
-    `<port>${objectAccountsAndDll['servers'][HftOrNot].port}</port>` +
-    '<language>en</language>' +
-    '<autopos>false</autopos>' +
-    '<session_timeout>200</session_timeout>' +
-    '<request_timeout>20</request_timeout>' +
-    '</command>';
+      `${'<command id="connect">' + '<login>'}${
+        objectAccountsAndDll['users'][HftOrNot].Account.login
+      }</login>` +
+      `<password>${objectAccountsAndDll['users'][HftOrNot].Account.password}</password>` +
+      `<host>${objectAccountsAndDll['servers'][HftOrNot].host}</host>` +
+      `<port>${objectAccountsAndDll['servers'][HftOrNot].port}</port>` +
+      '<language>en</language>' +
+      '<autopos>false</autopos>' +
+      '<session_timeout>200</session_timeout>' +
+      '<request_timeout>20</request_timeout>' +
+      closeCommandStr;
 
-        objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(myXMLConnectString);
+        objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
+            myXMLConnectString,
+        );
     } catch (err) {
         console.log(`Promise ${HftOrNot} catch ${err}`);
     } finally {
@@ -639,12 +640,12 @@ function functionSubscribeAndUnSubscribe(operation, type, security, HftOrNot) {
     return objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
     `<command id="${operation}">` +
       `<${type}>` +
-      '<security>' +
+      securityStr +
       `<board>${board}</board>` +
       `<seccode>${security}</seccode>` +
-      '</security>' +
+      closeSecurityStr +
       `</${type}>` +
-      '</command>',
+      closeCommandStr,
     );
 }
 
@@ -692,6 +693,118 @@ function functionDisconnect(HftOrNot) {
 
 // #endregion
 
+function checkCalculations(
+    diffForCancel,
+    HftOrNot,
+    command,
+    unixTime,
+    clientId,
+) {
+    if (diffForCancel >= 60000 && diffForCancel <= 540000) {
+        const isOpenOrdersExists = false;
+        const openOrdersObject = finamClass.getOpenOrders(HftOrNot);
+
+        writeToFileFN(command, isOpenOrdersExists, HftOrNot);
+
+        // если нет открытых заявок, закрытие открытых позиций
+        if (unixTime - startTimeTimer >= 30000 && isCheckFortsPosition === true) {
+            isCheckFortsPosition = false;
+            const dateHuman = new Date(unixTime)
+                .toISOString()
+                .replace('T', ' ')
+                .replace('Z', '');
+            const message = `${HftOrNot} ${dateHuman} нет открытых заявок. Срабтывание в functionConnectByTimer, прошло ${
+        (unixTime - startTimeTimer) / 1000
+      } секунд.`;
+
+            console.log(message);
+            writeToFile(message, path.join(process.cwd(), `log/${HftOrNot}/log.log`));
+        }
+
+        if (isOpenOrdersExists === false) {
+            if (isCheckFortsPosition === true) {
+                // предположим условие сработало, и выпонилось dll.SendCommand(get_forts_positions
+                // а при отсутствии позиций возврата не будет, и окажется зависшее условие и выполнение
+                startTimeTimer = unixTime;
+            } else {
+                isCheckFortsPosition = true;
+                objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
+          `<command id="get_forts_positions" client="${clientId}"/>`,
+                );
+            }
+        }
+    }
+}
+
+function SomeCalulations(diffForCancel) {
+    // после закрытия биржи получить историю, и сохранить ее в базу
+    if (diffForCancel <= 900000) {
+    // однотипный код получения истории
+        if (diffForCancel >= 660000 && diffForCancel < 780000) {
+            // 5-минутная история
+            functionCodeForGetHistory(2, 162);
+        } else if (diffForCancel >= 780000 && diffForCancel <= 900000) {
+            // часовая история
+            functionCodeForGetHistory(4, 14);
+        }
+    }
+}
+
+function writeToFileFN(command, isOpenOrdersExists, HftOrNot) {
+    Object.keys(typesOrdersArray).forEach(number => {
+        const type = typesOrdersArray[number];
+
+        if (openOrdersObject[type] !== undefined) {
+            Object.keys(openOrdersObject[type]).forEach(
+                numberInOpenOrdersObject => {
+                    const transactionId =
+            openOrdersObject[type][numberInOpenOrdersObject].transactionid;
+
+                    if (
+                        openOrdersObject[type][numberInOpenOrdersObject].status ===
+              'watching' &&
+            openOrdersObject[type][numberInOpenOrdersObject].condition ===
+              undefined
+                    ) {
+                        command = 'cancelstoporder';
+                        isOpenOrdersExists = true;
+                    } else if (
+                        openOrdersObject[type][numberInOpenOrdersObject].status ===
+              'active' ||
+
+            // заявки, выставленные newcondorder
+            (openOrdersObject[type][numberInOpenOrdersObject].status ===
+              'watching' &&
+              openOrdersObject[type][numberInOpenOrdersObject].condition !==
+                undefined)
+                    ) {
+                        command = 'cancelorder';
+                        isOpenOrdersExists = true;
+                    }
+                    if (command !== '') {
+                        const queryObject = {
+                            command,
+                            orderId: transactionId,
+                            HftOrNot,
+                        };
+                        const result = ''; // functionCancelOrder(queryObject);
+                        const message =
+              `${HftOrNot} ` +
+              `снятие заявки transactionId = ${transactionId}, queryObject = ${JSON.stringify(
+                  queryObject,
+              )}, result = ${result}`;
+
+                        writeToFile(
+                            message,
+                            path.join(process.cwd(), `log/${HftOrNot}/log.log`),
+                        );
+                    }
+                },
+            );
+        }
+    });
+}
+
 // #region подключение в 9:59, снятие заявок и закрытие открытых позиций в 23:40
 /**
  * @this {functionConnectByTimer}
@@ -724,7 +837,7 @@ function functionConnectByTimer(HftOrNot) {
     // let dateHumanForConnect = new Date(dateUnixForConnect).toISOString().replace('T', ' ').replace('Z', '');
     // // console.log(currentFullDateThisServer + ' запуск functionConnectDisconnectByTimer');
     // let diff = unixTime - dateUnixForConnect;
-    let command = '';
+    const command = '';
 
     // let timeStart = (7 * 60 * 60 * 1000);
     // разница во времени здесь получается 6 часов, активирую подключение за 60 секунд до запуска торгов
@@ -757,104 +870,9 @@ function functionConnectByTimer(HftOrNot) {
     ).getTime();
     const diffForCancel = unixTime - dateUnixForCancelOpenOrders; // -33679989
 
-    if (diffForCancel >= 60000 && diffForCancel <= 540000) {
-        let isOpenOrdersExists = false;
-        const openOrdersObject = finamClass.getOpenOrders(HftOrNot);
+    checkCalculations(diffForCancel, HftOrNot, command, unixTime, clientId);
 
-        Object.keys(typesOrdersArray).forEach(number => {
-            const type = typesOrdersArray[number];
-
-            if (openOrdersObject[type] !== undefined) {
-                Object.keys(openOrdersObject[type]).forEach(
-                    numberInOpenOrdersObject => {
-                        const transactionId =
-              openOrdersObject[type][numberInOpenOrdersObject].transactionid;
-
-                        if (
-                            openOrdersObject[type][numberInOpenOrdersObject].status ===
-                'watching' &&
-              openOrdersObject[type][numberInOpenOrdersObject].condition ===
-                undefined
-                        ) {
-                            command = 'cancelstoporder';
-                            isOpenOrdersExists = true;
-                        } else if (
-                            openOrdersObject[type][numberInOpenOrdersObject].status ===
-                'active' ||
-
-              // заявки, выставленные newcondorder
-              (openOrdersObject[type][numberInOpenOrdersObject].status ===
-                'watching' &&
-                openOrdersObject[type][numberInOpenOrdersObject].condition !==
-                  undefined)
-                        ) {
-                            command = 'cancelorder';
-                            isOpenOrdersExists = true;
-                        }
-                        if (command !== '') {
-                            const queryObject = {
-                                command,
-                                orderId: transactionId,
-                                HftOrNot,
-                            };
-                            const result = functionCancelOrder(queryObject);
-                            const message =
-                `${HftOrNot} ` +
-                `снятие заявки transactionId = ${transactionId}, queryObject = ${JSON.stringify(
-                    queryObject,
-                )}, result = ${result}`;
-
-                            console.log(message);
-                            writeToFile(
-                                message,
-                                path.join(process.cwd(), `log/${HftOrNot}/log.log`),
-                            );
-                        }
-                    },
-                );
-            }
-        });
-
-        // если нет открытых заявок, закрытие открытых позиций
-        if (unixTime - startTimeTimer >= 30000 && isCheckFortsPosition === true) {
-            isCheckFortsPosition = false;
-            const dateHuman = new Date(unixTime)
-                .toISOString()
-                .replace('T', ' ')
-                .replace('Z', '');
-            const message = `${HftOrNot} ${dateHuman} нет открытых заявок. Срабтывание в functionConnectByTimer, прошло ${
-        (unixTime - startTimeTimer) / 1000
-      } секунд.`;
-
-            console.log(message);
-            writeToFile(message, path.join(process.cwd(), `log/${HftOrNot}/log.log`));
-        }
-
-        if (isOpenOrdersExists === false) {
-            if (isCheckFortsPosition === true) {
-                // предположим условие сработало, и выпонилось dll.SendCommand(get_forts_positions
-                // а при отсутствии позиций возврата не будет, и окажется зависшее условие и выполнение
-                startTimeTimer = unixTime;
-            } else {
-                isCheckFortsPosition = true;
-                objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(
-          `<command id="get_forts_positions" client="${clientId}"/>`,
-                );
-            }
-        }
-    }
-
-    // после закрытия биржи получить историю, и сохранить ее в базу
-    if (diffForCancel <= 900000) {
-        // однотипный код получения истории
-        if (diffForCancel >= 660000 && diffForCancel < 780000) {
-            // 5-минутная история
-            functionCodeForGetHistory(2, 162);
-        } else if (diffForCancel >= 780000 && diffForCancel <= 900000) {
-            // часовая история
-            functionCodeForGetHistory(4, 14);
-        }
-    }
+    SomeCalulations(diffForCancel);
 
     setTimeout(functionConnectByTimer, 60000, HftOrNot);
 }
@@ -875,13 +893,14 @@ Object.keys(typesUsersArray).forEach(number => {
  * @return null
  * */
 function functionCloseWebServerByTimer() {
-    if (mainFile.workHereOrInTransaqConnector === false) {
-        if (getHistoryByTimer === false) {
-            functionCloseWebServer(
-                '<result success="false"><message>если работа веб сервера не закончена, закончить по таймеру</message></result>',
-                '<result success="false"><message>если работа веб сервера не закончена, закончить по таймеру</message></result>',
-            );
-        }
+    if (
+        mainFile.workHereOrInTransaqConnector === false &&
+    getHistoryByTimer === false
+    ) {
+        functionCloseWebServer(
+            '<result success="false"><message>если работа веб сервера не закончена, закончить по таймеру</message></result>',
+            '<result success="false"><message>если работа веб сервера не закончена, закончить по таймеру</message></result>',
+        );
     }
     setTimeout(functionCloseWebServerByTimer, 20000);
 }
@@ -935,22 +954,16 @@ function functionCloseWebServer(messageLog = '', string) {
  * */
 function writeToFile(inputArgs, fileName) {
     try {
-        // fs.appendFile(fileName, inputArgs + "\r\n", {'flag': 'as+'}, (err, fileDescriptor) => {
-        //     if (err) {
-        //         console.log(err);
-        //     }
-        // });
+    // fs.appendFile(fileName, inputArgs + "\r\n", {'flag': 'as+'}, (err, fileDescriptor) => {
+    //     if (err) {
+    //         console.log(err);
+    //     }
+    // });
         fs.open(fileName, 'as+', (error, fileDescriptor) => {
             if (!error && fileDescriptor) {
                 fs.writeFile(fileDescriptor, `${inputArgs}\r\n`, error => {
                     if (!error) {
-                        fs.close(fileDescriptor, error => {
-                            if (error) {
-                                console.log(error);
-                            }
-                        });
-                    } else {
-                        console.log(error);
+                        fs.close(fileDescriptor, () => {});
                     }
                 });
             }
@@ -990,21 +1003,26 @@ function functionGetHistory(queryObject) {
     const unixTime = new Date().getTime();
     const dateHuman = new Date(unixTime).toISOString().substring(0, 10);
     const arrayDate = dateHuman.split('-');
-    const contractString = functions.functionContractString(arrayDate['0'], arrayDate['1'], arrayDate['2']);
-
+    const contractString = functions.functionContractString(
+        arrayDate['0'],
+        arrayDate['1'],
+        arrayDate['2'],
+    );
     const commandXml =
     `<command id="${command}">` +
-    '<security>' +
+    securityStr +
     `<board>${board}</board>` +
     `<seccode>${contractString}</seccode>` +
-    '</security>' +
+    closeSecurityStr +
     `<period>${period}</period>` +
     `<count>${count}</count>` +
     '<reset>true</reset>' +
-    '</command>';
+    closeCommandStr;
 
     // истрию получаю для NotHft - указываю явно
-    return objectAccountsAndDll['afterInitialize']['NotHft'].SendCommand(commandXml);
+    return objectAccountsAndDll['afterInitialize']['NotHft'].SendCommand(
+        commandXml,
+    );
 }
 
 // #endregion
@@ -1061,7 +1079,8 @@ function functionGetHistoryByTimer() {
  * */
 function functionSendOrderToBirga(queryObject) {
     const { HftOrNot } = queryObject;
-    const command = functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject);
+    const command =
+    functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject);
 
     return objectAccountsAndDll['afterInitialize'][HftOrNot].SendCommand(command);
 }
@@ -1184,7 +1203,7 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
     let condValue = '';
 
     if (queryObject.condorder !== undefined) {
-        /*
+    /*
         http://127.0.0.1:12345?command=newcondorder&buysell=sell&orderprice=90000&quantity=1&cond_type=LastUp&cond_value=90000&condorder=true&HftOrNot=NotHft
         Допустимые типы условия:
         Bid		= лучшая цена покупки
@@ -1243,10 +1262,10 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
     // #region заявка со стоп-лоссом и тейк-профитом
     let makeParametrsFromUrl =
     `${
-      '<command id="newstoporder">' + '<security>' + '<board>'
+      '<command id="newstoporder">' + securityStr + '<board>'
     }${board}</board>` +
     `<seccode>${contractString}</seccode>` +
-    '</security>' +
+    closeSecurityStr +
     `<client>${clientId}</client>` +
     `<buysell>${buyOrSell}</buysell>` +
     `<validfor>${validfor}</validfor>` +
@@ -1259,14 +1278,16 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
     `<activationprice>${takeProfitPrice}</activationprice>` +
     `<quantity>${quantity}</quantity>` +
     '</takeprofit>' +
-    '</command>';
+    closeCommandStr;
 
     // #endregion
 
     // #region рыночная заявка
     if (queryObject.ismarket !== undefined) {
-        /** @var queryObject.ismarket string */
-        const isMarket = Boolean(JSON.parse(String(queryObject.ismarket).toLowerCase()));
+    /** @var queryObject.ismarket string */
+        const isMarket = Boolean(
+            JSON.parse(String(queryObject.ismarket).toLowerCase()),
+        );
 
         if (isMarket === true) {
             // в ТС FORTS не предусмотрены заявки без цены, то рыночные заявки для фьючерсов эмулируются с помощью лимитированных следующим образом:
@@ -1280,16 +1301,16 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
 
             makeParametrsFromUrl =
         `${
-          '<command id="neworder">' + '<security>' + '<board>'
+          '<command id="neworder">' + securityStr + '<board>'
         }${board}</board>` +
         `<seccode>${contractString}</seccode>` +
-        '</security>' +
+        closeSecurityStr +
         `<client>${clientId}</client>` +
         `<buysell>${buyOrSell}</buysell>` +
         `<price>${orderPrice}</price>` +
         `<quantity>${quantity}</quantity>` +
         '<unfilled>PutInQueue</unfilled>' +
-        '</command>';
+        closeCommandStr;
         }
     }
 
@@ -1299,10 +1320,10 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
     if (queryObject.condorder !== undefined) {
         makeParametrsFromUrl =
       `${
-        '<command id="newcondorder">' + '<security>' + '<board>'
+        '<command id="newcondorder">' + securityStr + '<board>'
       }${board}</board>` +
       `<seccode>${contractString}</seccode>` +
-      '</security>' +
+      closeSecurityStr +
       `<client>${clientId}</client>` +
       `<buysell>${buyOrSell}</buysell>` +
       `<price>${orderPrice}</price>` +
@@ -1311,7 +1332,7 @@ function functionXmlQueryToSendTransactionMakeParametrsFromUrl(queryObject) {
       `<validbefore>${validfor}</validbefore>` +
       `<cond_type>${condType}</cond_type>` +
       `<cond_value>${condValue}</cond_value>` +
-      '</command>';
+      closeCommandStr;
     }
 
     // #endregion
@@ -1408,3 +1429,5 @@ module.exports = {
 };
 
 // #endregion
+
+/* eslint-disable no-console */
