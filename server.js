@@ -345,7 +345,7 @@ function getCommand(req, res, command) {
     // res.json({ error: false, message: result });
     //use socket
 
-    if (result.indexOf('true') > -1) {
+    if (result && result.indexOf('true') > -1) {
         res.end();
     } else {
         // иначе экспортировать переменные, завершение вывода ответа и завершение работы веб сервера будет в transaqConnector.js
