@@ -5,8 +5,8 @@ const ref = require('ref-napi');
 const xml2json = require('xml2json');
 const fs = require('fs');
 const path = require('path');
-const finamClass = require('./FinamClass.js');
-const functions = require('../common_sevice_functions/functions.js');
+const finamClass = require('./FinamClass');
+const functions = require('../common_sevice_functions/functions');
 
 const closeCommandStr = '</command>';
 const securityStr = '<security>';
@@ -14,6 +14,23 @@ const closeSecurityStr = '</security>';
 
 // \различные функции
 const config = require(path.join(process.cwd(), 'config.json'));
+
+const io = require('../../socket.js').get();
+let clientsockets
+io.on('connection', function(clientsocket) {
+    console.log('connection come');
+    console.log(`user connected with socket id: ${clientsocket.id}`);
+
+    //Whenever someone disconnects this piece of code executed
+  
+    clientsocket.emit('conn', 'wait for this');
+    clientsocket.on('disconnect', function() {
+        console.log('disconnected');
+    });
+    clientsockets=clientsocket
+    return clientsocket
+});
+
 
 // const mysqlModule = require('../common_sevice_functions/mysqlClass.js');
 
@@ -79,7 +96,8 @@ Object.keys(typesUsersArray).forEach(number => {
 
 // #endregion
 
-const mainFile = require('../../server.js');
+const mainFile= require('../../server.js');
+
 const subscribeOnGlass = {
     Hft: false,
     NotHft: false,
@@ -998,7 +1016,7 @@ function functionGetHistory(queryObject) {
     const { command } = queryObject;
     const { period } = queryObject;
     const { count } = queryObject;
-
+  console.log("insdie history")
     // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
     const unixTime = new Date().getTime();
     const dateHuman = new Date(unixTime).toISOString().substring(0, 10);

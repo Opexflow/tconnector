@@ -4,30 +4,35 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const http = require('http').Server(app);
-
 // const morgan=require('morgan');
 // const path = require("path");
 // const compression = require('compression');
-const io = require('socket.io')(http, {
-    cors: {
-        origin: '*',
-        methods: ['GET', 'POST'],
-        transports: ['websocket', 'polling'],
-        credentials: true,
-    },
-    allowEIO3: true,
+
+const io = require('./socket.js').init(http);
+let clientsockets
+io.on('connection', function(clientsocket) {
+    console.log('connection come');
+    console.log(`user connected with socket id: ${clientsocket.id}`);
+
+    //Whenever someone disconnects this piece of code executed
+  
+    clientsocket.emit('conn', 'wait for this');
+    clientsocket.on('disconnect', function() {
+        console.log('disconnected');
+    });
+    clientsockets=clientsocket
+    return clientsocket
 });
 
-const route = express.Router();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cors());
-app.use(route);
+
 
 const xml2json = require('xml2json');
 const transaqConnector = require('./modules_in_project/finam/transaqConnector.js');
-const dev = app.get('dev') === 'production';
+const { resourceLimits } = require('worker_threads');
 
 // различные функции
 let workHereOrInTransaqConnector = true;
@@ -85,19 +90,21 @@ const arrayAnyWorldCommands = [
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=Hft
         * */
-let clientsocket;
 
-io.on('connection', function(socket) {
-    console.log('connection come');
-    console.log(`user connected with socket id: ${socket.id}`);
 
-    //Whenever someone disconnects this piece of code executed
-    clientsocket = socket;
-    clientsocket.emit('conn', 'wait for this');
-    socket.on('disconnect', function() {
-        console.log('disconnected');
-    });
-});
+// io.on('connection', function(clientsocket) {
+//     console.log('connection come');
+//     console.log(`user connected with socket id: ${clientsocket.id}`);
+
+//     //Whenever someone disconnects this piece of code executed
+  
+//     clientsocket.emit('conn', 'wait for this');
+//     clientsocket.on('disconnect', function() {
+//         console.log('disconnected');
+//     });
+
+//     return clientsocket
+// });
 
 // if we are sure to listen only to port 12345 we can remove this random port process.env.PORT
 const ip = '0.0.0.0';
@@ -364,6 +371,8 @@ route.get('/', (req, res) => {
             getCommand(req, res, command);
         }
         module.exports.res = res;
+      
+        
     } catch (error) {
         // clientsocket.emit("password-change-error",'Wrong login or password')
         console.log(error);
