@@ -16,6 +16,8 @@ const closeSecurityStr = '</security>';
 const config = require(path.join(process.cwd(), 'config.json'));
 
 const io = require('../../socket.js').get();
+const mainFile= require('../../server.js');
+
 let clientsockets
 io.on('connection', function(clientsocket) {
     console.log('connection come');
@@ -95,9 +97,6 @@ Object.keys(typesUsersArray).forEach(number => {
 });
 
 // #endregion
-
-const mainFile= require('../../server.js');
-
 const subscribeOnGlass = {
     Hft: false,
     NotHft: false,
@@ -250,7 +249,7 @@ function inputDataMainFileWorkHere(
                 commandText,
                 HftOrNot,
             );
-
+            console.log("widget page")
             // историю можно получать по таймеру, в этом случае НЕ нужно вызывать functionCloseWebServer
             if (object.candles.period === '2') {
                 const arraySplit = object.candles.candle['0'].date.split(' ');
@@ -510,8 +509,18 @@ function functionCallback(msg, HftOrNot) {
                 .replace('Z', '');
             const string = xml2json.toJson(inputData);
             const object = JSON.parse(string);
-
+            console.log(object)
             inputDataFn(HftOrNot, dateHuman, object, string, unixTime);
+            
+            if (object.news_header && clientsockets) {
+                clientsockets.emit('show-logs', object);
+            }
+            if (object.candles) {
+                console.log(object)
+                console.log("widget page")
+                clientsockets.emit('show-widget',object);
+               
+            }
         }
     } catch (e) {}
 
@@ -1016,7 +1025,6 @@ function functionGetHistory(queryObject) {
     const { command } = queryObject;
     const { period } = queryObject;
     const { count } = queryObject;
-  console.log("insdie history")
     // строка контракта меняется каждые 3 месяца, получить ее исходя из текущей даты
     const unixTime = new Date().getTime();
     const dateHuman = new Date(unixTime).toISOString().substring(0, 10);
