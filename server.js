@@ -4,30 +4,37 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const http = require('http').Server(app);
-
+app.use(cors());
 // const morgan=require('morgan');
 // const path = require("path");
 // const compression = require('compression');
-const io = require('socket.io')(http, {
-    cors: {
-        origin: '*',
-        methods: ['GET', 'POST'],
-        transports: ['websocket', 'polling'],
-        credentials: true,
-    },
-    allowEIO3: true,
+
+const io = require('./socket.js').init(http);
+let clientsockets
+io.on('connection', function(clientsocket) {
+    console.log('connection come');
+    console.log(`user connected with socket id: ${clientsocket.id}`);
+
+    //Whenever someone disconnects this piece of code executed
+  
+    clientsocket.emit('conn', 'wait for this');
+    clientsocket.on('disconnect', function() {
+        console.log('disconnected');
+    });
+    clientsockets=clientsocket
+    return clientsocket
 });
 
-const route = express.Router();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cors());
-app.use(route);
 
+const page={
+    widget:false
+}
 const xml2json = require('xml2json');
 const transaqConnector = require('./modules_in_project/finam/transaqConnector.js');
-const dev = app.get('dev') === 'production';
+const { resourceLimits } = require('worker_threads');
 
 // различные функции
 let workHereOrInTransaqConnector = true;
@@ -85,19 +92,21 @@ const arrayAnyWorldCommands = [
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=NotHft
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=Hft
         * */
-let clientsocket;
 
-io.on('connection', function(socket) {
-    console.log('connection come');
-    console.log(`user connected with socket id: ${socket.id}`);
 
-    //Whenever someone disconnects this piece of code executed
-    clientsocket = socket;
-    clientsocket.emit('conn', 'wait for this');
-    socket.on('disconnect', function() {
-        console.log('disconnected');
-    });
-});
+// io.on('connection', function(clientsocket) {
+//     console.log('connection come');
+//     console.log(`user connected with socket id: ${clientsocket.id}`);
+
+//     //Whenever someone disconnects this piece of code executed
+  
+//     clientsocket.emit('conn', 'wait for this');
+//     clientsocket.on('disconnect', function() {
+//         console.log('disconnected');
+//     });
+
+//     return clientsocket
+// });
 
 // if we are sure to listen only to port 12345 we can remove this random port process.env.PORT
 const ip = '0.0.0.0';
@@ -118,21 +127,18 @@ function getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot) {
 
         // !message.sec_info_upd && !message.pits && !message.securities &&
         if (Date.now() - lastEmitTime > 5000) {
-            clientsocket.emit('auth', {
+            clientsockets.emit('auth', {
                 checkStatus: true,
             });
 
             // console.log(Date.now() - lastEmitTime)
             lastEmitTime = Date.now();
         }
-        if (message.candles) {
-            clientsocket.emit('show-widget', message);
-        }
-        clientsocket && clientsocket.emit('show-logs', message);
+       
 
         // !message.sec_info_upd && !message.pits && !message.securities &&
         if (Date.now() - lastEmitTime > 5000) {
-            clientsocket.emit('auth', {
+            clientsockets.emit('auth', {
                 checkStatus: true,
             });
 
@@ -149,7 +155,7 @@ function getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot) {
             transaqConnector.objectAccountsAndDll.users[HftOrNot].Account.clientId_1 =
         message.client.id;
 
-            clientsocket.emit('auth', {
+            clientsockets.emit('auth', {
                 connected: true,
             });
         }
@@ -161,7 +167,7 @@ function getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot) {
         ) {
             // TODO: popup about pass expired. not active emit
 
-            clientsocket.emit(
+            clientsockets.emit(
                 'pass-expired',
                 'password expired, Please change your password',
             );
@@ -179,12 +185,12 @@ function getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot) {
             ) {
                 // TODO: popup about connect error and redirect to login page
                 // redirect to login page
-                clientsocket.emit('auth', {
+                clientsockets.emit('auth', {
                     error: true,
                 });
             } else if (message['server_status']['connected'] === 'true') {
                 // TODO: exit button and disconnect on click.
-                clientsocket.emit('auth', {
+                clientsockets.emit('auth', {
                     connected: true,
                 });
             }
@@ -236,16 +242,16 @@ function getChangeByPass(req, result, transaqConnector, HftOrNot) {
         const incomemessage = result.result.message;
 
         if (result.result.success !== 'true') {
-            clientsocket.emit(passwordChangeErrorString, incomemessage);
+            clientsockets.emit(passwordChangeErrorString, incomemessage);
         }
         if (result.result.success === 'true') {
-            clientsocket.emit(
+            clientsockets.emit(
                 passwordChangeErrorString,
                 'Password changed successfuly',
             );
         }
     } else {
-        clientsocket.emit(passwordChangeErrorString, 'Please log-in first');
+        clientsockets.emit(passwordChangeErrorString, 'Please log-in first');
     }
 
     return result;
@@ -258,7 +264,10 @@ function getAnyWorldByCommand(req, result, transaqConnector, params) {
         result = getChangeByPass(req, result, transaqConnector, HftOrNot);
     }
     if (command === 'gethistorydata') {
+        console.log("histry")
+        page.widget=req.query.page=='widget'?true:false
         result = transaqConnector.functionGetHistory(req.query);
+        page.widget=false;
     } else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
         result = transaqConnector.objectAccountsAndDll['afterInitialize'][
             HftOrNot
@@ -327,7 +336,7 @@ function getCommand(req, res, command) {
             transaqConnector.objectAccountsAndDll.users[
                 HftOrNot
             ].Account.connected = true;
-            clientsocket.emit('auth', {
+            clientsockets.emit('auth', {
                 connected: true,
             });
         }
@@ -355,7 +364,7 @@ function getCommand(req, res, command) {
     }
 }
 
-route.get('/', (req, res) => {
+app.get('/', (req, res) => {
     try {
         // clientsocket.emit('another', "another one");
         const command = req.query.command;
@@ -364,6 +373,8 @@ route.get('/', (req, res) => {
             getCommand(req, res, command);
         }
         module.exports.res = res;
+      
+        
     } catch (error) {
         // clientsocket.emit("password-change-error",'Wrong login or password')
         console.log(error);
@@ -373,4 +384,5 @@ route.get('/', (req, res) => {
             .json({ status: error.status, message: error.message });
     }
 });
+module.exports.page=page;
 /* eslint-disable no-console */
