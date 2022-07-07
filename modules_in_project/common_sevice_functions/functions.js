@@ -75,11 +75,7 @@ function getContractedLetter(month, day, lastNumber) {
     }
     let contractsLetterNew = getSubContractedLetter(month, day);
 
-    contractsLetterNew = contractsLetterNew ?
-        contractsLetterNew :
-        contractsLetter;
-
-    return { contractsLetterNew, lastNumberInYearNew: lastNumberInYear };
+    return { contractsLetter: contractsLetterNew || contractsLetter, lastNumberInYearNew: lastNumberInYear };
 }
 
 // #endregion
