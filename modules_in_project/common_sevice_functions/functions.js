@@ -73,7 +73,7 @@ function getContractedLetter(month, day, lastNumber) {
         lastNumberInYear++;
         lastNumberInYear = lastNumberInYear === 10 ? 0 : lastNumber;
     }
-    let contractsLetterNew = getSubContractedLetter(month, day);
+    const contractsLetterNew = getSubContractedLetter(month, day);
 
     return { contractsLetter: contractsLetterNew || contractsLetter, lastNumberInYearNew: lastNumberInYear };
 }

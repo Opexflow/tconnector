@@ -4,34 +4,37 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const http = require('http').Server(app);
+
 app.use(cors());
+
 // const morgan=require('morgan');
 // const path = require("path");
 // const compression = require('compression');
 
 const io = require('./socket.js').init(http);
-let clientsockets
+let clientsockets;
+
 io.on('connection', function(clientsocket) {
     console.log('connection come');
     console.log(`user connected with socket id: ${clientsocket.id}`);
 
     //Whenever someone disconnects this piece of code executed
-  
+
     clientsocket.emit('conn', 'wait for this');
     clientsocket.on('disconnect', function() {
         console.log('disconnected');
     });
-    clientsockets=clientsocket
-    return clientsocket
-});
+    clientsockets = clientsocket;
 
+    return clientsocket;
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-const page={
-    widget:false
-}
+const page = {
+    widget: false,
+};
 const xml2json = require('xml2json');
 const transaqConnector = require('./modules_in_project/finam/transaqConnector.js');
 const { resourceLimits } = require('worker_threads');
@@ -93,13 +96,12 @@ const arrayAnyWorldCommands = [
             http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&HftOrNot=Hft
         * */
 
-
 // io.on('connection', function(clientsocket) {
 //     console.log('connection come');
 //     console.log(`user connected with socket id: ${clientsocket.id}`);
 
 //     //Whenever someone disconnects this piece of code executed
-  
+
 //     clientsocket.emit('conn', 'wait for this');
 //     clientsocket.on('disconnect', function() {
 //         console.log('disconnected');
@@ -134,7 +136,6 @@ function getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot) {
             // console.log(Date.now() - lastEmitTime)
             lastEmitTime = Date.now();
         }
-       
 
         // !message.sec_info_upd && !message.pits && !message.securities &&
         if (Date.now() - lastEmitTime > 5000) {
@@ -174,7 +175,7 @@ function getFunctionConnect(transaqConnector, lastEmitTime, HftOrNot) {
 
             // socket io notifu the user that the password is expired , make this to sender only
             // clientsocket.emit("password-expired",'Password expired. Please change the password')
-            clientsocket.emit('auth', {
+            clientsockets.emit('auth', {
                 expired: true,
             });
         }
@@ -264,10 +265,10 @@ function getAnyWorldByCommand(req, result, transaqConnector, params) {
         result = getChangeByPass(req, result, transaqConnector, HftOrNot);
     }
     if (command === 'gethistorydata') {
-        console.log("histry")
-        page.widget=req.query.page=='widget'?true:false
+        console.log('histry');
+        page.widget = req.query.page === 'widget';
         result = transaqConnector.functionGetHistory(req.query);
-        page.widget=false;
+        page.widget = false;
     } else if (command === 'get_portfolio' || command === 'get_mc_portfolio') {
         result = transaqConnector.objectAccountsAndDll['afterInitialize'][
             HftOrNot
@@ -373,8 +374,6 @@ app.get('/', (req, res) => {
             getCommand(req, res, command);
         }
         module.exports.res = res;
-      
-        
     } catch (error) {
         // clientsocket.emit("password-change-error",'Wrong login or password')
         console.log(error);
@@ -384,5 +383,5 @@ app.get('/', (req, res) => {
             .json({ status: error.status, message: error.message });
     }
 });
-module.exports.page=page;
+module.exports.page = page;
 /* eslint-disable no-console */

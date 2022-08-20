@@ -1,4 +1,5 @@
 module.exports = {
+    root: true,
     env: {
         browser: true,
         node: true,
@@ -7,7 +8,7 @@ module.exports = {
         commonjs: true,
     },
     parserOptions: {
-        ecmaVersion: 8,
+        ecmaVersion: 2020,
     },
     globals: {
         console: false,
@@ -118,6 +119,7 @@ module.exports = {
         'jsx-quotes': ['error', 'prefer-double'],
         'react/jsx-uses-react': 'error',
         'react/jsx-uses-vars': 'error',
+        'sonarjs/cognitive-complexity': ['error', 20],
     },
     ignorePatterns: ['node_modules/*'],
 };

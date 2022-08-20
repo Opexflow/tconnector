@@ -11,7 +11,7 @@
   "scripts": {
     "start": "nodemon server.js",
     "lint": "npx eslint . --fix",
-    "fix-lint": "npx eslint --fix ."
+    "lint-fix": "npx eslint --fix ."
   },
   "precommit": {
     "run": "fix-lint"
