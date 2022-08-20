@@ -79,6 +79,8 @@ const dllFunctions = {
     SetCallbackEx: [ffi.types.bool, ['pointer', ffi.types.CString]],
 };
 
+// let i = 0;
+
 class TConnector {
     constructor(hft = false, host = 'tr1.finam.ru', port = 3900) {
         this.isHFT = Boolean(hft);
@@ -92,11 +94,14 @@ class TConnector {
             dllFunctions,
         );
 
+        this.client = false;
+
         this.errorMessage;
     }
 
     async connect(login, password) {
         this.inProgress = true;
+        this.token = login;
 
         const ffiCallback = ffi.Callback(
             ffi.types.bool,
@@ -113,17 +118,34 @@ class TConnector {
                     // {"server_status":{"sys_ver":"629","build":"18","server_tz":"Russian Standard Time","id":"6","connected":"true"}}
                 }
 
-                // if (1 ||
-                //     !t.markets &&
-                //     !t.candlekinds &&
-                //     !t.securities &&
-                //     !t.pits &&
-                //     !t.sec_info_upd &&
-                //     !t.boards
-                // ) {
-                //     console.log(tString);
-                //     s
+                if (!t.markets &&
+                    !t.candlekinds &&
+                    !t.securities &&
+                    !t.pits &&
+                    !t.sec_info_upd &&
+                    !t.boards
+                ) {
+                    console.log(tString, t); // eslint-disable-line no-console
+                }
+
+                // else {
+                //     ++i;
+                //     if (!(i % 1000)) {
+                //         console.log('conn', i)
+                //     }
                 // }
+
+                if (t.client) {
+                    // client: {
+                    //     id: '7683898',
+                    //     remove: 'false',
+                    //     market: '4',
+                    //     currency: 'RUB',
+                    //     type: 'spot',
+                    //     forts_acc: '7683898'
+                    //   }
+                    this.client = t.client;
+                }
 
                 if (msg !== undefined) {
                     this.sdk.FreeMemory(msg);
@@ -182,6 +204,10 @@ class TConnector {
     //     }, 5000);
     // }
 
+    getClientId() {
+        return this.client?.id || undefined;
+    }
+
     checkServerStatus() {
         const command = 'server_status';
         const result = this.sdk.SendCommand(`<command id="${command}"/>`);
@@ -203,6 +229,7 @@ class TConnector {
 
         return {
             ...answer,
+            accountId: this.getClientId(),
             errorMessage: this.errorMessage,
             connected: this.connected,
         };
