@@ -104,9 +104,37 @@ try {
 
                 this.shares = [];
                 this.futures = [];
+                this.securities = {};
+                this.historyCandles = {};
+                this.subscribes = {};
+                this.quotes = {};
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+        }
+
+        getInfoByFigi(figi) {
+            this.getSecuritiesInfo(figi);
+
+            return this.securities[figi];
+        }
+
+        getFigi(s) {
+            return `${s.seccode};${s.board};${s.market}`;
+        }
+
+        getNoMarketFigi(s) {
+            return `${s.seccode};${s.board}`;
+        }
+
+        splitFigi(s) {
+            const c = s.split(';');
+
+            return {
+                seccode: c[0],
+                board: c[1],
+                market: c[2],
+            };
         }
 
         async connect(login, password, accountId) { // eslint-disable-line sonarjs/cognitive-complexity
@@ -117,7 +145,7 @@ try {
             const ffiCallback = ffi.Callback(
                 ffi.types.bool,
                 [ref.refType(ffi.types.CString)],
-                msg => {
+                msg => { // eslint-disable-line complexity
                     try {
                         // callback(ref.readCString(msg, 0), this.isHFT);
                         const tString = ref.readCString(msg, 0);
@@ -132,36 +160,133 @@ try {
 
                         if (!t.markets &&
                             !t.candlekinds &&
-
-                            // !t.securities &&
+                            !t.securities &&
                             !t.pits &&
                             !t.sec_info_upd &&
-                            !t.boards
+                            !t.boards &&
+                            !t.candles &&
+                            !t.server_status &&
+                            !t.client &&
+
+                            // !t.overnight &&
+                            !t.mc_portfolio &&
+                            !t.positions &&
+                            !t.news_header &&
+                            !t.quotes
                         ) {
-                            // console.log(t); // eslint-disable-line no-console
-                            // console.log(t.securities.security[0])
-                            // console.log(t.securities.security[0].sectype, t.securities.security[0].board, t.securities.security[0].currency)
+                            // Отслеживаем необработанные сообщения.
+                            console.log(tString); // eslint-disable-line no-console
+                            console.log(t); // eslint-disable-line no-console
                         }
 
-                        if (t.securities) { //} && t.securities.security[0].currency === 'RUR') {
+                        if (t.sec_info) {
+                            const s = t.sec_info;
+                            const figi = this.getFigi(s);
+
+                            this.setSecuritiesInfo(figi, s);
+                        }
+
+                        if (t.candlekinds) {
+                            // {
+                            //     kind: [
+                            //       { id: '1', period: '60', name: '1 minute' },
+                            //       { id: '2', period: '300', name: '5 minutes' },
+                            //       { id: '3', period: '900', name: '15 minutes' },
+                            //       { id: '4', period: '3600', name: '1 hour' },
+                            //       { id: '5', period: '86400', name: '1 day' },
+                            //       { id: '6', period: '604800', name: '1 week' }
+                            //     ]
+                            //   }
+                        }
+
+                        if (t.candles) {
+                            this.saveHistoryData(t.candles);
+                        }
+
+                        const addFigi = s => {
+                            return {
+                                ...s,
+                                ticker: s.seccode,
+                                figi: this.getFigi(s),
+                                name: s.shortname,
+                            };
+                        };
+
+                        if (t.pits) {
+                            const pits = Array.isArray(t.pits.pit) ? t.pits.pit : [t.pits.pit];
+
+                            for (const s of pits) {
+                                // minstep Стоимость_шага_цены = point_cost * minstep * 10^decimals
+                                const minPriceIncrement = (s.point_cost * s.minstep * Math.pow(10, s.decimals)) / 100;
+                                const trunced = Math.trunc(minPriceIncrement);
+
+                                this.setSecuritiesInfo(this.getFigi(s), {
+                                    ...s,
+                                    minPriceIncrement: {
+                                        units: trunced,
+                                        nano: minPriceIncrement * 1e9 - trunced * 1e9,
+                                    },
+                                });
+                            }
+                        }
+
+                        if (t.securities) {
                             for (const s of t.securities.security) {
+                                const newSec = addFigi(s);
+
                                 if (s.sectype === 'FUT' && s.currency === 'RUR') {
-                                    this.futures.push({
-                                        ...s,
-                                        ticker: s.seccode,
-                                        figi: s.seccode,
-                                        name: s.shortname,
-                                    });
+                                    this.futures.push(newSec);
                                 } else if (s.sectype === 'SHARE' && s.currency === 'RUR') {
-                                    this.shares.push({
-                                        ...s,
-                                        ticker: s.seccode,
-                                        figi: s.seccode,
-                                        name: s.shortname,
-                                    });
+                                    this.shares.push(newSec);
                                 }
 
                                 // this.shares = this.shares.concat(t.securities.security);
+                                this.setSecuritiesInfo(newSec.figi, newSec);
+
+                                //  else {
+                                //     console.log('ALARM!!! Double seccode.')
+                                //     console.log(this.securities[newSec.figi]);
+                                //     console.log(addFigi(s));
+                                // }
+                            }
+                        }
+
+                        if (t.quotes) {
+                            const quote = Array.isArray(t.quotes.quote) ? t.quotes.quote : [t.quotes.quote];
+
+                            for (const s of quote) {
+                                const figi = this.getNoMarketFigi(s);
+
+                                if (!this.quotes[figi]) {
+                                    this.quotes[figi] = {
+                                        bids: {}, // покупка
+                                        asks: {}, // продажа
+                                    };
+                                }
+
+                                let { price, buy, sell } = s;
+
+                                buy = Number(buy);
+                                sell = Number(sell);
+                                price = parseFloat(price);
+
+                                if (!buy || buy <= 0) {
+                                    delete this.quotes[figi].bids[price];
+                                } else {
+                                    this.quotes[figi].bids[price] = {
+                                        quantity: buy,
+                                        price: parseFloat(price),
+                                    };
+                                }
+
+                                if (!sell || sell <= 0) {
+                                    delete this.quotes[figi].asks[price];
+                                } else {
+                                    this.quotes[figi].asks[price] = {
+                                        quantity: sell,
+                                        price: parseFloat(price),
+                                    };
+                                }
                             }
                         }
 
@@ -256,6 +381,30 @@ try {
         //     }, 5000);
         // }
 
+        getQuotes(figi) {
+            const noMarketFigi = this.getNoMarketFigi(this.splitFigi(figi));
+            const q = this.quotes[noMarketFigi] || undefined;
+
+            if (q) {
+                const bids = [];
+                const asks = [];
+
+                Object.keys(q.bids).forEach(key => {
+                    bids.push(q.bids[key]);
+                });
+
+                Object.keys(q.asks).forEach(key => {
+                    asks.push(q.asks[key]);
+                });
+
+                return {
+                    bids,
+                    asks,
+                    time: new Date().getTime(),
+                };
+            }
+        }
+
         getClientId() {
             return this.client?.id || undefined;
         }
@@ -312,6 +461,69 @@ try {
             }
         }
 
+        getHistoryDataActual(seccode, interval, isToday) {
+            const sec = this.getInfoByFigi(seccode);
+            const command = `<command id="gethistorydata">
+                <security>
+                <board>${sec.board}</board>
+                <seccode>${sec.seccode}</seccode>
+                </security>
+                <period>${interval}</period>
+                <count>2000</count>
+                <reset>${Boolean(isToday)}</reset>
+                </command>`;
+
+            this.sdk.SendCommand(command);
+        }
+
+        getCandleUnixTime(candleTime) {
+            const splitTime = candleTime.split(' ');
+            const date = splitTime[0];
+            const time = splitTime[1];
+
+            const splitDate = date.split('.');
+
+            return new Date(`${splitDate[1]}.${splitDate[0]}.${splitDate[2]} ${time}`).getTime();
+        }
+
+        saveHistoryData(candles) {
+            if (!candles || !candles.candle) {
+                return;
+            }
+
+            const noMarketFigi = this.getNoMarketFigi(candles);
+
+            this.subscribe(noMarketFigi);
+
+            if (!this.historyCandles[noMarketFigi]) {
+                this.historyCandles[noMarketFigi] = {};
+            }
+
+            if (!this.historyCandles[noMarketFigi][candles.period]) {
+                this.historyCandles[noMarketFigi][candles.period] = {};
+            }
+
+            const candleArr = Array.isArray(candles.candle) ? candles.candle : [candles.candle];
+
+            for (const c of candleArr) {
+                const time = this.getCandleUnixTime(c.date);
+
+                this.historyCandles[noMarketFigi][candles.period][time] = {
+                    ...c,
+                    period: candles.period,
+                    time,
+                };
+            }
+        }
+
+        getHistoryData(figi, period) {
+            const noMarketFigi = this.getNoMarketFigi(this.splitFigi(figi));
+
+            if (this.historyCandles[noMarketFigi]) {
+                return this.historyCandles[noMarketFigi][period];
+            }
+        }
+
         getClients() {
             return this.clients;
         }
@@ -326,7 +538,6 @@ try {
                 }
 
                 const user = union ? `union="${union}"` : `client="${clientId}"`;
-
                 const myXMLConnectString = `<command id="get_mc_portfolio" ${user} 
                     currency="true" asset="true" money="true" depo="true"
                     registers="true" maxbs="true"/></command>`;
@@ -359,6 +570,77 @@ try {
                     instruments: this.futures,
                 },
             };
+        }
+
+        setSecuritiesInfo(figi, data) {
+            if (!this.securities[figi]) {
+                this.securities[figi] = { ...data };
+
+                return;
+            }
+
+            Object.assign(this.securities[figi], data);
+
+            return this.securities[figi];
+        }
+
+        getSecuritiesInfo(figi) {
+            // if (!this.securities[figi]) {
+            //     this.securities[figi] = {};
+            // }
+
+            // if (this.securities[figi].infoRequrested) {
+            //     return;
+            // }
+
+            // this.securities[figi].infoRequrested = true;
+
+            // const { seccode, market } = this.splitFigi(figi);
+
+            // const command = `<command id = "get_securities_info">
+            //     <security>
+            //     <market>${market}</market>
+            //     <seccode>${seccode}</seccode>
+            //     </security>
+            //     </command>`;
+
+            // this.sdk.SendCommand(command);
+        }
+
+        subscribe(figi, subscribe = 1) {
+            if (this.subscribes[figi]) {
+                return;
+            }
+
+            this.subscribes[figi] = true;
+            const { seccode, board } = this.splitFigi(figi);
+
+            let command = `<command id="${subscribe ? 'subscribe' : 'unsubscribe'}">`;
+
+            /* <alltrades> - подписка на сделки рынка
+            <security>
+            <board> идентификатор режима торгов</board>
+            <seccode>код инструмента</seccode>
+            </security>
+            …
+            </alltrades>
+            <quotations> - подписка на изменения показателей торгов
+            <security>
+            <board> идентификатор режима торгов</board>
+            <seccode>код инструмента</seccode>
+            </security>
+            …
+            </quotations> */
+            command += `<quotes>
+            <security>
+            <board>${board}</board>
+            <seccode>${seccode}</seccode>
+            </security>
+            </quotes>
+            </command>`;
+
+            this.subscribes[figi] = true;
+            this.sdk.SendCommand(command);
         }
 
         disconnect() {
