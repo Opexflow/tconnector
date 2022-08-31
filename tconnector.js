@@ -108,15 +108,35 @@ try {
                 this.historyCandles = {};
                 this.subscribes = {};
                 this.quotes = {};
+                this.isFinalInited = false;
+
+                this.orders = [];
+                this.trades = [];
+                this.positions = [];
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
         }
 
-        getInfoByFigi(figi) {
+        async getInfoByFigi(figi) {
             this.getSecuritiesInfo(figi);
 
-            return this.securities[figi];
+            return new Promise(resolve => {
+                if (!this.securities[figi]) {
+                    const i = setInterval(() => {
+                        if (this.securities[figi]) {
+                            clearInterval(i);
+                            resolve(this.securities[figi]);
+                        }
+                    }, 100);
+                } else {
+                    resolve({
+                        ...this.securities[figi],
+                        noBoardFigi: this.getNoBoardFigi(this.securities[figi]),
+                        noMarketFigi: this.getNoMarketFigi(this.securities[figi]),
+                    });
+                }
+            });
         }
 
         getFigi(s) {
@@ -124,7 +144,15 @@ try {
         }
 
         getNoMarketFigi(s) {
+            // figi для инструментов.
+            // quotes, candles
             return `${s.seccode};${s.board}`;
+        }
+
+        getNoBoardFigi(s) {
+            // figi для клиента.
+            // portfolio, positions
+            return `${s.seccode};${s.market}`;
         }
 
         splitFigi(s) {
@@ -168,7 +196,7 @@ try {
                             !t.server_status &&
                             !t.client &&
 
-                            // !t.overnight &&
+                            !t.overnight &&
                             !t.mc_portfolio &&
                             !t.positions &&
                             !t.news_header &&
@@ -177,6 +205,15 @@ try {
                             // Отслеживаем необработанные сообщения.
                             console.log(tString); // eslint-disable-line no-console
                             console.log(t); // eslint-disable-line no-console
+                        }
+
+                        if (t.positions) {
+                            // console.log(JSON.stringify(t.positions.sec_position, null, 4));
+                        }
+
+                        if(!this.isFinalInited && t.overnight) {
+                            this.isFinalInited = true;
+                            console.log('inited');
                         }
 
                         if (t.sec_info) {
@@ -218,14 +255,11 @@ try {
                             for (const s of pits) {
                                 // minstep Стоимость_шага_цены = point_cost * minstep * 10^decimals
                                 const minPriceIncrement = (s.point_cost * s.minstep * Math.pow(10, s.decimals)) / 100;
-                                const trunced = Math.trunc(minPriceIncrement);
 
                                 this.setSecuritiesInfo(this.getFigi(s), {
                                     ...s,
-                                    minPriceIncrement: {
-                                        units: trunced,
-                                        nano: minPriceIncrement * 1e9 - trunced * 1e9,
-                                    },
+                                    lot: s.lotsize,
+                                    minPriceIncrement: this.priceToObject(minPriceIncrement),
                                 });
                             }
                         }
@@ -253,6 +287,8 @@ try {
 
                         if (t.quotes) {
                             const quote = Array.isArray(t.quotes.quote) ? t.quotes.quote : [t.quotes.quote];
+
+                            console.log('quote', quote);
 
                             for (const s of quote) {
                                 const figi = this.getNoMarketFigi(s);
@@ -337,7 +373,7 @@ try {
                 const x = ffiCallback;
             });
 
-            const promise = new Promise((resolve, reject) => {
+            const promise = new Promise((resolve) => {
                 resolve(
                     this.sdk.Initialize(
                         path.resolve(__dirname, `log/${this.isHFT ? 'hft' : 'default'}`),
@@ -375,11 +411,28 @@ try {
             return null;
         }
 
+        priceToObject(price) {
+            if (typeof price === 'object' && typeof price.units !== 'undefined') {
+                return price;
+            }
+
+            const trunced = Math.trunc(Number(price));
+
+            return {
+                units: trunced,
+                nano: price * 1e9 - trunced * 1e9,
+            }
+        }
+
         // checkServerStatusInterval() {
         //     this.checkInterval = setInterval(() => {
         //         this.checkServerStatus();
         //     }, 5000);
         // }
+
+        saveOrders(orders) {
+
+        }
 
         getQuotes(figi) {
             const noMarketFigi = this.getNoMarketFigi(this.splitFigi(figi));
@@ -455,14 +508,19 @@ try {
                     accountId: this.getClientId(),
                     errorMessage: this.errorMessage,
                     connected: this.connected,
+                    isFinalInited: this.isFinalInited,
                 };
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
         }
 
-        getHistoryDataActual(seccode, interval, isToday) {
-            const sec = this.getInfoByFigi(seccode);
+        async getHistoryDataActual(seccode, interval, isToday) {
+            const sec = await this.getInfoByFigi(seccode);
+            if (!sec || !sec.seccode || !sec.board) {
+                return;
+            }
+
             const command = `<command id="gethistorydata">
                 <security>
                 <board>${sec.board}</board>
@@ -528,6 +586,49 @@ try {
             return this.clients;
         }
 
+        async getPortfolioAsync() {
+            const p = this.getPortfolio();
+            p.updated = false;
+
+            if (p.infoRequrested) {
+                return;
+            }
+
+            p.infoRequrested = true;
+
+            this.getPortfolioSend();
+            
+            return new Promise(resolve => {
+                const i = setInterval(() => {
+                    try {    
+                        const portfolio = this.getPortfolio();
+
+                        if (portfolio.updated) {
+                            portfolio.infoRequrested = false;
+                            i && clearInterval(i);
+
+                            resolve({
+                                ...portfolio,
+                                security: portfolio.security &&
+                                    portfolio.security
+                                    .filter(sec => Number(sec.balance))
+                                    .map(sec => {
+                                        return {
+                                            ...sec,
+                                            figi: this.getNoBoardFigi(sec),
+                                        }
+                                    })
+                            })
+                        }
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }, 100);
+            });
+        }
+
+
+
         getPortfolioSend() {
             try {
                 const clientId = this.getClientId();
@@ -553,7 +654,10 @@ try {
         }
 
         portfolioSet(p) {
-            this.portfolio = p;
+            this.portfolio = {
+                ...p,
+                updated: true,
+            };
         }
 
         getShares() {
@@ -585,26 +689,26 @@ try {
         }
 
         getSecuritiesInfo(figi) {
-            // if (!this.securities[figi]) {
-            //     this.securities[figi] = {};
-            // }
+            try {
+                if (!this.securities[figi] || this.securities[figi].infoRequrested) {
+                    return;
+                }
 
-            // if (this.securities[figi].infoRequrested) {
-            //     return;
-            // }
+                this.securities[figi].infoRequrested = true;
 
-            // this.securities[figi].infoRequrested = true;
+                const { seccode, market } = this.splitFigi(figi);
 
-            // const { seccode, market } = this.splitFigi(figi);
+                const command = `<command id = "get_securities_info">
+                    <security>
+                    <market>${market}</market>
+                    <seccode>${seccode}</seccode>
+                    </security>
+                    </command>`;
 
-            // const command = `<command id = "get_securities_info">
-            //     <security>
-            //     <market>${market}</market>
-            //     <seccode>${seccode}</seccode>
-            //     </security>
-            //     </command>`;
-
-            // this.sdk.SendCommand(command);
+                this.sdk.SendCommand(command);
+            } catch (e) {
+                console.log('getSecuritiesInfo', e);
+            }
         }
 
         subscribe(figi, subscribe = 1) {
@@ -632,15 +736,15 @@ try {
             …
             </quotations> */
             command += `<quotes>
-            <security>
-            <board>${board}</board>
-            <seccode>${seccode}</seccode>
-            </security>
-            </quotes>
-            </command>`;
+                <security>
+                <board>${board}</board>
+                <seccode>${seccode}</seccode>
+                </security>
+                </quotes>
+                </command>`;
 
             this.subscribes[figi] = true;
-            this.sdk.SendCommand(command);
+            console.log('subscribe command', figi, command, this.sdk.SendCommand(command));
         }
 
         disconnect() {
@@ -663,3 +767,100 @@ try {
 } catch (e) {
     console.log(e); // eslint-disable-line no-console
 }
+
+
+/**
+ * struct
+ * 
+ * {
+  positions: {
+    sec_position: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    money_position: {
+      currency: 'RUR',
+      client: '30W6B/30W6B',
+      union: '406977R8RWR',
+      markets: [Object],
+      asset: 'FOND_MICEX',
+      shortname: 'Деньги КЦБ ММВБ (RUR)',
+      saldoin: '-2.03',
+      bought: '0.0',
+      sold: '0.0',
+      saldo: '-2.16',
+      ordbuy: '0.0',
+      ordbuycond: '0.0',
+      comission: '0.13'
+    }
+  }
+}
+
+
+{
+  orders: {
+    order: {
+      transactionid: '35258605',
+      orderno: '1892947646771896972',
+      secid: '20318',
+      union: '406977R8RWR',
+      board: 'FUT',
+      seccode: 'SiU2',
+      client: '76832ri',
+      status: 'matched',
+      buysell: 'B',
+      time: '30.08.2022 15:02:53',
+      brokerref: {},
+      value: '0',
+      accruedint: '0.0',
+      settlecode: {},
+      balance: '0',
+      price: '66123',
+      quantity: '1',
+      hidden: '0',
+      yield: '0.0',
+      withdrawtime: '0',
+      condition: 'None',
+      maxcomission: '0.0',
+      within_pos: 'false',
+      result: {}
+    }
+  }
+}
+
+
+
+{
+  trades: {
+    trade: {
+      secid: '20318',
+      tradeno: '1892947646767954601',
+      orderno: '1892947646771909661',
+      board: 'FUT',
+      seccode: 'SiU2',
+      client: '76832ri',
+      buysell: 'S',
+      union: '406977R8RWR',
+      time: '30.08.2022 15:03:42',
+      brokerref: {},
+      value: '0',
+      comission: '0.0',
+      price: '61016',
+      quantity: '1',
+      items: '1',
+      yield: '0.0',
+      currentpos: '0',
+      accruedint: '0.0',
+      tradetype: 'T',
+      settlecode: {}
+    }
+  }
+}
+
+
+
+ */
