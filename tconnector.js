@@ -1,4 +1,5 @@
 const xml2json = require('xml2json');
+const xmlParser = require('xml2js').parseString;
 
 // const transaqConnector = require('./modules_in_project/finam/transaqConnector.js');
 
@@ -169,202 +170,328 @@ try {
             this.inProgress = true;
             this.token = login;
             this.accountIdSelected = accountId;
+            let inited = false;
+            const time = new Date().getTime();
+            let parsingTime = 0;
+            let processingTime = 0;
+            const ignored = new Set();
+            const used = new Set();
+            console.log('connect');
 
             const ffiCallback = ffi.Callback(
                 ffi.types.bool,
                 [ref.refType(ffi.types.CString)],
-                msg => { // eslint-disable-line complexity
-                    try {
-                        // callback(ref.readCString(msg, 0), this.isHFT);
-                        const tString = ref.readCString(msg, 0);
-                        const t = JSON.parse(xml2json.toJson(tString));
-
-                        if (t.server_status && t.server_status.connected === 'error') {
-                            this.errorMessage = t.server_status['$t'];
-
-                            // {"server_status":{"connected":"error","$t":"Неверный идентификатор, пароль или Touch Memory"}}
-                            // {"server_status":{"sys_ver":"629","build":"18","server_tz":"Russian Standard Time","id":"6","connected":"true"}}
-                        }
-
-                        if (!t.markets &&
-                            !t.candlekinds &&
-                            !t.securities &&
-                            !t.pits &&
-                            !t.sec_info_upd &&
-                            !t.boards &&
-                            !t.candles &&
-                            !t.server_status &&
-                            !t.client &&
-
-                            !t.overnight &&
-                            !t.mc_portfolio &&
-                            !t.positions &&
-                            !t.news_header &&
-                            !t.quotes
-                        ) {
-                            // Отслеживаем необработанные сообщения.
-                            console.log(tString); // eslint-disable-line no-console
-                            console.log(t); // eslint-disable-line no-console
-                        }
-
-                        if (t.positions) {
-                            // console.log(JSON.stringify(t.positions.sec_position, null, 4));
-                        }
-
-                        if(!this.isFinalInited && t.overnight) {
-                            this.isFinalInited = true;
-                            console.log('inited');
-                        }
-
-                        if (t.sec_info) {
-                            const s = t.sec_info;
-                            const figi = this.getFigi(s);
-
-                            this.setSecuritiesInfo(figi, s);
-                        }
-
-                        if (t.candlekinds) {
-                            // {
-                            //     kind: [
-                            //       { id: '1', period: '60', name: '1 minute' },
-                            //       { id: '2', period: '300', name: '5 minutes' },
-                            //       { id: '3', period: '900', name: '15 minutes' },
-                            //       { id: '4', period: '3600', name: '1 hour' },
-                            //       { id: '5', period: '86400', name: '1 day' },
-                            //       { id: '6', period: '604800', name: '1 week' }
-                            //     ]
-                            //   }
-                        }
-
-                        if (t.candles) {
-                            this.saveHistoryData(t.candles);
-                        }
-
-                        const addFigi = s => {
-                            return {
-                                ...s,
-                                ticker: s.seccode,
-                                figi: this.getFigi(s),
-                                name: s.shortname,
-                            };
-                        };
-
-                        if (t.pits) {
-                            const pits = Array.isArray(t.pits.pit) ? t.pits.pit : [t.pits.pit];
-
-                            for (const s of pits) {
-                                // minstep Стоимость_шага_цены = point_cost * minstep * 10^decimals
-                                const minPriceIncrement = (s.point_cost * s.minstep * Math.pow(10, s.decimals)) / 100;
-
-                                this.setSecuritiesInfo(this.getFigi(s), {
-                                    ...s,
-                                    lot: s.lotsize,
-                                    minPriceIncrement: this.priceToObject(minPriceIncrement),
-                                });
-                            }
-                        }
-
-                        if (t.securities) {
-                            for (const s of t.securities.security) {
-                                const newSec = addFigi(s);
-
-                                if (s.sectype === 'FUT' && s.currency === 'RUR') {
-                                    this.futures.push(newSec);
-                                } else if (s.sectype === 'SHARE' && s.currency === 'RUR') {
-                                    this.shares.push(newSec);
-                                }
-
-                                // this.shares = this.shares.concat(t.securities.security);
-                                this.setSecuritiesInfo(newSec.figi, newSec);
-
-                                //  else {
-                                //     console.log('ALARM!!! Double seccode.')
-                                //     console.log(this.securities[newSec.figi]);
-                                //     console.log(addFigi(s));
-                                // }
-                            }
-                        }
-
-                        if (t.quotes) {
-                            const quote = Array.isArray(t.quotes.quote) ? t.quotes.quote : [t.quotes.quote];
-
-                            console.log('quote', quote);
-
-                            for (const s of quote) {
-                                const figi = this.getNoMarketFigi(s);
-
-                                if (!this.quotes[figi]) {
-                                    this.quotes[figi] = {
-                                        bids: {}, // покупка
-                                        asks: {}, // продажа
-                                    };
-                                }
-
-                                let { price, buy, sell } = s;
-
-                                buy = Number(buy);
-                                sell = Number(sell);
-                                price = parseFloat(price);
-
-                                if (!buy || buy <= 0) {
-                                    delete this.quotes[figi].bids[price];
-                                } else {
-                                    this.quotes[figi].bids[price] = {
-                                        quantity: buy,
-                                        price: parseFloat(price),
-                                    };
-                                }
-
-                                if (!sell || sell <= 0) {
-                                    delete this.quotes[figi].asks[price];
-                                } else {
-                                    this.quotes[figi].asks[price] = {
-                                        quantity: sell,
-                                        price: parseFloat(price),
-                                    };
-                                }
-                            }
-                        }
-
-                        // else {
-                        //     ++i;
-                        //     if (!(i % 1000)) {
-                        //         console.log('conn', i)
-                        //     }
-                        // }
-
-                        if (t.client) {
-                            // client: {
-                            //     id: '7683898',
-                            //     remove: 'false',
-                            //     market: '4',
-                            //     currency: 'RUB',
-                            //     type: 'spot',
-                            //     forts_acc: '7683898'
-                            //   }
-
-                            this.clients.push(t.client);
-
-                            // this.client = t.client;
-                            // console.log(t.client);
-
-                            if (this.accountIdSelected === t.client.id) {
-                                this.client = { ...t.client };
-                            }
-                        }
-
-                        if (t.mc_portfolio) {
-                            this.portfolioSet(t.mc_portfolio);
-                        }
-
-                        if (msg !== undefined) {
-                            this.sdk.FreeMemory(msg);
-                        }
-
-                        return null;
-                    } catch (e) {
-                        console.log(e); // eslint-disable-line no-console
+                async msg => { // eslint-disable-line complexity
+                    if (!this.isFinalInited && msg.toString() === '<overnig') {
+                        console.log('inited!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+                        console.log(new Date().getTime() - time, ((new Date().getTime() - time) / 1000 / 60).toFixed(2));
                     }
+
+                    // let tString = JSON.parse(xml2json.toJson(ref.readCString(msg, 0)));
+                    const q = ref.readCString(msg, 0);
+
+                    if (!/(^<server_status|^<positions|^<overnight|^<sec_info>|^<securitiess|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q)) {
+                        ignored.add(q.substring(0, 15));
+                    } else {
+                        used.add(q.substring(0, 15));
+
+                        xmlParser(q, {
+                            explicitArray: false,
+                            async : true,
+                            // mergeAttrs: true,
+                        }, async (err, t) => {
+
+                            try {
+                            /*
+                            setTimeout(() => {
+                                try {
+
+                                    if (!inited) {
+                                        // if (msg.toString() === '<sec_inf') {
+                                        //     tString = ref.readCString(msg, 0);
+
+                                            if (tString.indexOf('<sec_info_upd') !== -1) {
+                                                // msg && this.sdk.FreeMemory(msg)
+                                                return null;
+                                            }
+                                        // }
+                                    }
+
+                                    // console.log(msg.toString());
+
+                                if (!inited) {
+                                    // const m = msg.toString();
+                                    // if (m === '<sec_inf') {
+                                    //     this.sdk.FreeMemory(msg);
+                                    //     return;
+                                    // }
+                                    if (tString.indexOf('<overnig') !== -1) {
+                                        inited = true;
+                                        console.log('inited!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+                                        console.log(new Date().getTime() - time, ((new Date().getTime() - time) / 1000 / 60).toFixed(2));
+                                    } 
+                                    // else {
+                                    //     console.log(m);
+
+                                    //     setTimeout(() => {
+                                    //         this.sdk.FreeMemory(msg)
+                                    //     }, 50);
+
+                                    //     return;
+                                    // }
+                                }
+                            
+                                // if (!inited) {
+                                //     // console.log(msgToString);
+                                //     this.sdk.FreeMemory(msg);
+                                //     return;
+                                // }
+
+                                // callback(ref.readCString(msg, 0), this.isHFT);
+                                
+            
+                                let ps = new Date().getTime();
+                                // const tString = '' + ref.readCString(msg, 0);
+                                // tString || (tString = ref.readCString(msg, 0));
+                                
+                                xmlParser(tString, (err, result) => {   
+                                    if (err) {
+                                        console.log(err, tString);
+                                    }                    
+                                    
+                                    
+                                    const t = result; // JSON.parse(xml2json.toJson(tString));
+                                    parsingTime += new Date().getTime() - ps;
+
+                                    ps = new Date().getTime();
+
+                            */
+                                    if (t.server_status && t.server_status.connected === 'error') {
+                                        this.errorMessage = t.server_status['$t'];
+
+                                        // {"server_status":{"connected":"error","$t":"Неверный идентификатор, пароль или Touch Memory"}}
+                                        // {"server_status":{"sys_ver":"629","build":"18","server_tz":"Russian Standard Time","id":"6","connected":"true"}}
+                                    }
+
+                        
+
+                                    if (
+                                        !t.markets &&
+                                        !t.candlekinds &&
+                                        !t.securities &&
+                                        !t.pits &&
+                                        !t.sec_info_upd &&
+                                        !t.boards &&
+                                        !t.candles &&
+                                        !t.server_status &&
+                                        !t.client &&
+
+                                        !t.overnight &&
+                                        !t.mc_portfolio &&
+                                        !t.positions &&
+                                        !t.news_header &&
+                                        !t.quotes
+                                    ) {
+                                        // Отслеживаем необработанные сообщения.
+                                        // console.log(tString); // eslint-disable-line no-console
+                                        console.log(t); // eslint-disable-line no-console
+                                    }
+
+                                    if (t.positions) {
+                                        // console.log(JSON.stringify(t.positions.sec_position, null, 4));
+                                    }
+
+                                    if(!this.isFinalInited && t.overnight) {
+                                        this.isFinalInited = true;
+                                        console.log('inited');
+                                        console.log('ignored: ', [...ignored].join(', '))
+                                        console.log('used: ', [...used].join(', '))
+                                    }
+
+                                    if (t.sec_info) {
+                                        console.log('sec_info', sec_info)
+                                        const s = t.sec_info;
+                                        const figi = this.getFigi(s);
+
+                                        this.setSecuritiesInfo(figi, s);
+                                    }
+
+                                    // if (t.candlekinds) {
+                                        // {
+                                        //     kind: [
+                                        //       { id: '1', period: '60', name: '1 minute' },
+                                        //       { id: '2', period: '300', name: '5 minutes' },
+                                        //       { id: '3', period: '900', name: '15 minutes' },
+                                        //       { id: '4', period: '3600', name: '1 hour' },
+                                        //       { id: '5', period: '86400', name: '1 day' },
+                                        //       { id: '6', period: '604800', name: '1 week' }
+                                        //     ]
+                                        //   }
+                                    // }
+
+                                    if (t.candles) {
+                                        this.saveHistoryData(t.candles);
+                                    }
+
+                                    const addFigi = s => {
+                                        s.ticker = s.seccode;
+                                        s.figi = this.getFigi(s);
+                                        s.name = s.shortname;
+                                        
+                                        return s;
+                                    };
+
+                                    if (false && t.pits) {
+                                            const pits = Array.isArray(t.pits.pit) ? t.pits.pit : [t.pits.pit];
+                                            for (const s of pits) {
+                                                // minstep Стоимость_шага_цены = point_cost * minstep * 10^decimals
+                                                const minPriceIncrement = (s.point_cost * s.minstep * Math.pow(10, s.decimals)) / 100;
+
+                                                this.setSecuritiesInfo(this.getFigi({
+                                                    seccode: s['$'].seccode,
+                                                    board: s['$'].board,
+                                                    market: s.market,
+                                                }), {
+                                                    ...s,
+                                                    ...s['$'],
+                                                    lot: s.lotsize,
+                                                    minPriceIncrement: this.priceToObject(minPriceIncrement),
+                                                });
+                                            }
+                                    }
+
+                                    if (t.securities) {
+                                        // setTimeout(() => {
+                                            try {
+                                                // console.log(t.securities);
+                                                for (let s of t.securities.security) {
+                                                                                                      
+                                                    console.log(s);
+                                                    // console.log(typeof s.currency, JSON.stringify(s.currency), Object.keys(s.currency));
+                                                    // if (!s.currency) {
+                                                    //     console.log(s);
+                                                    //     qwe
+                                                    // }
+                                                    if (s.currency === 'RUR') {
+                                                        
+                                                        // s = {
+                                                        //     ...s,
+                                                        //     ...s['$'],
+                                                        //     opmask: s.opmask && {
+                                                        //         ...s.opmask['$']
+                                                        //     }
+                                                        // };
+    
+                                                        const newSec = addFigi(s);
+
+                                                        if (s.sectype === 'FUT') {
+                                                            this.futures.push(newSec);
+                                                        } else if (s.sectype === 'SHARE') {
+                                                            this.shares.push(newSec);
+                                                        }
+
+                                                        this.setSecuritiesInfo(newSec.figi, newSec);
+                                                    }
+                                                }
+                                            } catch (e) {
+                                                console.log(e);
+                                            }
+                                        // }, 15);
+                                    }
+
+                                    if (t.quotes) {
+                                        const quote = Array.isArray(t.quotes.quote) ? t.quotes.quote : [t.quotes.quote];
+
+                                        console.log('quote', quote);
+
+                                        for (const s of quote) {
+                                            const figi = this.getNoMarketFigi(s);
+
+                                            if (!this.quotes[figi]) {
+                                                this.quotes[figi] = {
+                                                    bids: {}, // покупка
+                                                    asks: {}, // продажа
+                                                };
+                                            }
+
+                                            let { price, buy, sell } = s;
+
+                                            buy = Number(buy);
+                                            sell = Number(sell);
+                                            price = parseFloat(price);
+
+                                            if (!buy || buy <= 0) {
+                                                delete this.quotes[figi].bids[price];
+                                            } else {
+                                                this.quotes[figi].bids[price] = {
+                                                    quantity: buy,
+                                                    price: parseFloat(price),
+                                                };
+                                            }
+
+                                            if (!sell || sell <= 0) {
+                                                delete this.quotes[figi].asks[price];
+                                            } else {
+                                                this.quotes[figi].asks[price] = {
+                                                    quantity: sell,
+                                                    price: parseFloat(price),
+                                                };
+                                            }
+                                        }
+                                    }
+
+                                    // else {
+                                    //     ++i;
+                                    //     if (!(i % 1000)) {
+                                    //         console.log('conn', i)
+                                    //     }
+                                    // }
+
+                                    if (t.client) {
+                                        // client: {
+                                        //     id: '7683898',
+                                        //     remove: 'false',
+                                        //     market: '4',
+                                        //     currency: 'RUB',
+                                        //     type: 'spot',
+                                        //     forts_acc: '7683898'
+                                        //   }
+
+                                        this.clients.push(t.client);
+
+                                        // this.client = t.client;
+                                        // console.log(t.client);
+
+                                        if (this.accountIdSelected === t.client.id) {
+                                            this.client = { ...t.client };
+                                        }
+                                    }
+
+                                    if (t.mc_portfolio) {
+                                        this.portfolioSet(t.mc_portfolio);
+                                    }
+
+                                // });
+
+                                // return null;
+                                // });
+
+                            } catch (e) {
+                                console.log(e); // eslint-disable-line no-console
+                            }
+
+                            // }, 0);
+                            // console.log(Math.random());
+                        });
+                    }
+
+                    if (msg !== undefined) {
+                        setTimeout(() => {
+                            this.sdk.FreeMemory(msg);
+                        }, 15);
+                    }
+
+                    return null;
                 },
             );
 
@@ -383,6 +510,9 @@ try {
             });
 
             try {
+
+                console.log('SetCallback');
+
                 this.sdk.SetCallback(ffiCallback);
 
                 // if (this.isHFT) {
@@ -564,7 +694,8 @@ try {
             const candleArr = Array.isArray(candles.candle) ? candles.candle : [candles.candle];
 
             for (const c of candleArr) {
-                const time = this.getCandleUnixTime(c.date);
+                console.log(c);
+                const time = this.getCandleUnixTime(c['$'].date);
 
                 this.historyCandles[noMarketFigi][candles.period][time] = {
                     ...c,
@@ -654,10 +785,8 @@ try {
         }
 
         portfolioSet(p) {
-            this.portfolio = {
-                ...p,
-                updated: true,
-            };
+            p.updated = true;
+            this.portfolio = p;
         }
 
         getShares() {
@@ -678,12 +807,12 @@ try {
 
         setSecuritiesInfo(figi, data) {
             if (!this.securities[figi]) {
-                this.securities[figi] = { ...data };
-
+                // this.securities[figi] = { ...data };
+                this.securities[figi] = data;
                 return;
             }
 
-            Object.assign(this.securities[figi], data);
+            // Object.assign(this.securities[figi], data);
 
             return this.securities[figi];
         }
