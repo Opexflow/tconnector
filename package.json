@@ -14,7 +14,7 @@
     "lint-fix": "npx eslint --fix ."
   },
   "precommit": {
-    "run": "fix-lint"
+    "run": "lint-fix"
   },
   "repository": {
     "type": "git",

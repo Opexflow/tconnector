@@ -108,7 +108,7 @@ try {
                 this.securities = {};
                 this.historyCandles = {};
                 this.subscribes = {};
-                this.quotes = {};
+                this.quotationsAndOrderbook = {};
                 this.isFinalInited = false;
 
                 this.orders = [];
@@ -170,37 +170,37 @@ try {
             this.inProgress = true;
             this.token = login;
             this.accountIdSelected = accountId;
-            let inited = false;
+            const inited = false;
             const time = new Date().getTime();
-            let parsingTime = 0;
-            let processingTime = 0;
+            const parsingTime = 0;
+            const processingTime = 0;
             const ignored = new Set();
             const used = new Set();
-            console.log('connect');
+
+            console.log('connect'); // eslint-disable-line no-console
 
             const ffiCallback = ffi.Callback(
                 ffi.types.bool,
                 [ref.refType(ffi.types.CString)],
                 async msg => { // eslint-disable-line complexity
-                    if (!this.isFinalInited && msg.toString() === '<overnig') {
-                        console.log('inited!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                        console.log(new Date().getTime() - time, ((new Date().getTime() - time) / 1000 / 60).toFixed(2));
-                    }
+                    // if (!this.isFinalInited && msg.toString() === '<overnig') {
+                    //     console.log('inited');
+                    //     console.log(parseInt(new Date().getTime() - time / 1000, 10));
+                    // }
 
                     // let tString = JSON.parse(xml2json.toJson(ref.readCString(msg, 0)));
                     const q = ref.readCString(msg, 0);
 
-                    if (!/(^<server_status|^<positions|^<overnight|^<sec_info>|^<securitiess|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q)) {
+                    if (!/(^<quotations|^<messages|^<server_status|^<positions|^<overnight|^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q)) {
                         ignored.add(q.substring(0, 15));
                     } else {
                         used.add(q.substring(0, 15));
 
                         xmlParser(q, {
                             explicitArray: false,
-                            async : true,
-                            // mergeAttrs: true,
-                        }, async (err, t) => {
-
+                            async: true,
+                            mergeAttrs: true,
+                        }, async (err, t) => { // eslint-disable-line complexity
                             try {
                             /*
                             setTimeout(() => {
@@ -229,7 +229,7 @@ try {
                                         inited = true;
                                         console.log('inited!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
                                         console.log(new Date().getTime() - time, ((new Date().getTime() - time) / 1000 / 60).toFixed(2));
-                                    } 
+                                    }
                                     // else {
                                     //     console.log(m);
 
@@ -240,7 +240,7 @@ try {
                                     //     return;
                                     // }
                                 }
-                            
+
                                 // if (!inited) {
                                 //     // console.log(msgToString);
                                 //     this.sdk.FreeMemory(msg);
@@ -248,35 +248,31 @@ try {
                                 // }
 
                                 // callback(ref.readCString(msg, 0), this.isHFT);
-                                
-            
+
                                 let ps = new Date().getTime();
                                 // const tString = '' + ref.readCString(msg, 0);
                                 // tString || (tString = ref.readCString(msg, 0));
-                                
-                                xmlParser(tString, (err, result) => {   
+
+                                xmlParser(tString, (err, result) => {
                                     if (err) {
                                         console.log(err, tString);
-                                    }                    
-                                    
-                                    
+                                    }
+
                                     const t = result; // JSON.parse(xml2json.toJson(tString));
                                     parsingTime += new Date().getTime() - ps;
 
                                     ps = new Date().getTime();
 
                             */
-                                    if (t.server_status && t.server_status.connected === 'error') {
-                                        this.errorMessage = t.server_status['$t'];
+                                if (t.server_status && t.server_status.connected === 'error') {
+                                    this.errorMessage = t.server_status['$t'];
 
-                                        // {"server_status":{"connected":"error","$t":"Неверный идентификатор, пароль или Touch Memory"}}
-                                        // {"server_status":{"sys_ver":"629","build":"18","server_tz":"Russian Standard Time","id":"6","connected":"true"}}
-                                    }
+                                    // {"server_status":{"connected":"error","$t":"Неверный идентификатор, пароль или Touch Memory"}}
+                                    // {"server_status":{"sys_ver":"629","build":"18","server_tz":"Russian Standard Time","id":"6","connected":"true"}}
+                                }
 
-                        
-
-                                    if (
-                                        !t.markets &&
+                                if (
+                                    !t.markets &&
                                         !t.candlekinds &&
                                         !t.securities &&
                                         !t.pits &&
@@ -285,197 +281,176 @@ try {
                                         !t.candles &&
                                         !t.server_status &&
                                         !t.client &&
+                                        !t.quotations &&
 
+                                        // !t.quotations &&
                                         !t.overnight &&
                                         !t.mc_portfolio &&
                                         !t.positions &&
                                         !t.news_header &&
                                         !t.quotes
-                                    ) {
-                                        // Отслеживаем необработанные сообщения.
-                                        // console.log(tString); // eslint-disable-line no-console
-                                        console.log(t); // eslint-disable-line no-console
+                                ) {
+                                    // Отслеживаем необработанные сообщения.
+                                    // console.log(tString); // eslint-disable-line no-console
+                                    console.log(t); // eslint-disable-line no-console
+                                }
+
+                                if (t.positions) {
+                                    // console.log(JSON.stringify(t.positions.sec_position, null, 4));
+                                }
+
+                                if (!this.isFinalInited && t.overnight) {
+                                    this.isFinalInited = true;
+                                    console.log('inited', parseInt((new Date().getTime() - time) / 1000, 10)); // eslint-disable-line no-console
+
+                                    console.log('ignored: ', [...ignored].join(', ')); // eslint-disable-line no-console
+                                    console.log('used: ', [...used].join(', ')); // eslint-disable-line no-console
+                                }
+
+                                if (t.sec_info) {
+                                    const s = t.sec_info;
+                                    const figi = this.getFigi(s);
+
+                                    this.setSecuritiesInfo(figi, s);
+                                }
+
+                                // if (t.candlekinds) {
+                                // {
+                                //     kind: [
+                                //       { id: '1', period: '60', name: '1 minute' },
+                                //       { id: '2', period: '300', name: '5 minutes' },
+                                //       { id: '3', period: '900', name: '15 minutes' },
+                                //       { id: '4', period: '3600', name: '1 hour' },
+                                //       { id: '5', period: '86400', name: '1 day' },
+                                //       { id: '6', period: '604800', name: '1 week' }
+                                //     ]
+                                //   }
+                                // }
+
+                                if (t.candles) {
+                                    this.saveHistoryData(t.candles);
+                                }
+
+                                if (t.pits) {
+                                    const pits = Array.isArray(t.pits.pit) ? t.pits.pit : [t.pits.pit];
+
+                                    for (const s of pits) {
+                                        // minstep Стоимость_шага_цены = point_cost * minstep * 10^decimals
+                                        const minPriceIncrement = (s.point_cost * s.minstep *
+                                            Math.pow(10, s.decimals)) / 100;
+
+                                        this.setSecuritiesInfo(this.getFigi({
+                                            seccode: s.seccode || s['$'].seccode,
+                                            board: s.board || s['$'].board,
+                                            market: s.market,
+                                        }), {
+                                            ...s,
+
+                                            // ...s['$'],
+                                            lot: s.lotsize,
+                                            minPriceIncrement: this.priceToObject(minPriceIncrement),
+                                        });
                                     }
+                                }
 
-                                    if (t.positions) {
-                                        // console.log(JSON.stringify(t.positions.sec_position, null, 4));
+                                if (t.securities) {
+                                    this.setSecurities(t.securities);
+                                }
+
+                                if (t.quotations) {
+                                    const quote = Array.isArray(t.quotations.quotation) ?
+                                        t.quotations.quotation : [t.quotations.quotation];
+
+                                    for (const s of quote) {
+                                        const figi = this.getNoMarketFigi(s);
+
+                                        if (!this.quotationsAndOrderbook[figi]) {
+                                            this.quotationsAndOrderbook[figi] = {
+                                                bids: {}, // покупка
+                                                asks: {}, // продажа
+                                                quotations: {},
+                                            };
+                                        }
+
+                                        Object.assign(this.quotationsAndOrderbook[figi].quotations, s);
                                     }
+                                }
 
-                                    if(!this.isFinalInited && t.overnight) {
-                                        this.isFinalInited = true;
-                                        console.log('inited');
-                                        console.log('ignored: ', [...ignored].join(', '))
-                                        console.log('used: ', [...used].join(', '))
-                                    }
+                                if (t.quotes) {
+                                    const quote = Array.isArray(t.quotes.quote) ? t.quotes.quote : [t.quotes.quote];
 
-                                    if (t.sec_info) {
-                                        console.log('sec_info', sec_info)
-                                        const s = t.sec_info;
-                                        const figi = this.getFigi(s);
+                                    for (const s of quote) {
+                                        const figi = this.getNoMarketFigi(s);
 
-                                        this.setSecuritiesInfo(figi, s);
-                                    }
+                                        if (!this.quotationsAndOrderbook[figi]) {
+                                            this.quotationsAndOrderbook[figi] = {
+                                                bids: {}, // покупка
+                                                asks: {}, // продажа
+                                                quotations: {},
+                                            };
+                                        }
 
-                                    // if (t.candlekinds) {
-                                        // {
-                                        //     kind: [
-                                        //       { id: '1', period: '60', name: '1 minute' },
-                                        //       { id: '2', period: '300', name: '5 minutes' },
-                                        //       { id: '3', period: '900', name: '15 minutes' },
-                                        //       { id: '4', period: '3600', name: '1 hour' },
-                                        //       { id: '5', period: '86400', name: '1 day' },
-                                        //       { id: '6', period: '604800', name: '1 week' }
-                                        //     ]
-                                        //   }
-                                    // }
+                                        let { price, buy, sell } = s;
 
-                                    if (t.candles) {
-                                        this.saveHistoryData(t.candles);
-                                    }
+                                        buy = Number(buy);
+                                        sell = Number(sell);
+                                        price = parseFloat(price);
 
-                                    const addFigi = s => {
-                                        s.ticker = s.seccode;
-                                        s.figi = this.getFigi(s);
-                                        s.name = s.shortname;
-                                        
-                                        return s;
-                                    };
+                                        if (!buy || buy <= 0) {
+                                            delete this.quotationsAndOrderbook[figi].bids[price];
+                                        } else {
+                                            this.quotationsAndOrderbook[figi].bids[price] = {
+                                                quantity: buy,
+                                                price: parseFloat(price),
+                                            };
+                                        }
 
-                                    if (false && t.pits) {
-                                            const pits = Array.isArray(t.pits.pit) ? t.pits.pit : [t.pits.pit];
-                                            for (const s of pits) {
-                                                // minstep Стоимость_шага_цены = point_cost * minstep * 10^decimals
-                                                const minPriceIncrement = (s.point_cost * s.minstep * Math.pow(10, s.decimals)) / 100;
-
-                                                this.setSecuritiesInfo(this.getFigi({
-                                                    seccode: s['$'].seccode,
-                                                    board: s['$'].board,
-                                                    market: s.market,
-                                                }), {
-                                                    ...s,
-                                                    ...s['$'],
-                                                    lot: s.lotsize,
-                                                    minPriceIncrement: this.priceToObject(minPriceIncrement),
-                                                });
-                                            }
-                                    }
-
-                                    if (t.securities) {
-                                        // setTimeout(() => {
-                                            try {
-                                                // console.log(t.securities);
-                                                for (let s of t.securities.security) {
-                                                                                                      
-                                                    console.log(s);
-                                                    // console.log(typeof s.currency, JSON.stringify(s.currency), Object.keys(s.currency));
-                                                    // if (!s.currency) {
-                                                    //     console.log(s);
-                                                    //     qwe
-                                                    // }
-                                                    if (s.currency === 'RUR') {
-                                                        
-                                                        // s = {
-                                                        //     ...s,
-                                                        //     ...s['$'],
-                                                        //     opmask: s.opmask && {
-                                                        //         ...s.opmask['$']
-                                                        //     }
-                                                        // };
-    
-                                                        const newSec = addFigi(s);
-
-                                                        if (s.sectype === 'FUT') {
-                                                            this.futures.push(newSec);
-                                                        } else if (s.sectype === 'SHARE') {
-                                                            this.shares.push(newSec);
-                                                        }
-
-                                                        this.setSecuritiesInfo(newSec.figi, newSec);
-                                                    }
-                                                }
-                                            } catch (e) {
-                                                console.log(e);
-                                            }
-                                        // }, 15);
-                                    }
-
-                                    if (t.quotes) {
-                                        const quote = Array.isArray(t.quotes.quote) ? t.quotes.quote : [t.quotes.quote];
-
-                                        console.log('quote', quote);
-
-                                        for (const s of quote) {
-                                            const figi = this.getNoMarketFigi(s);
-
-                                            if (!this.quotes[figi]) {
-                                                this.quotes[figi] = {
-                                                    bids: {}, // покупка
-                                                    asks: {}, // продажа
-                                                };
-                                            }
-
-                                            let { price, buy, sell } = s;
-
-                                            buy = Number(buy);
-                                            sell = Number(sell);
-                                            price = parseFloat(price);
-
-                                            if (!buy || buy <= 0) {
-                                                delete this.quotes[figi].bids[price];
-                                            } else {
-                                                this.quotes[figi].bids[price] = {
-                                                    quantity: buy,
-                                                    price: parseFloat(price),
-                                                };
-                                            }
-
-                                            if (!sell || sell <= 0) {
-                                                delete this.quotes[figi].asks[price];
-                                            } else {
-                                                this.quotes[figi].asks[price] = {
-                                                    quantity: sell,
-                                                    price: parseFloat(price),
-                                                };
-                                            }
+                                        if (!sell || sell <= 0) {
+                                            delete this.quotationsAndOrderbook[figi].asks[price];
+                                        } else {
+                                            this.quotationsAndOrderbook[figi].asks[price] = {
+                                                quantity: sell,
+                                                price: parseFloat(price),
+                                            };
                                         }
                                     }
+                                }
 
-                                    // else {
-                                    //     ++i;
-                                    //     if (!(i % 1000)) {
-                                    //         console.log('conn', i)
-                                    //     }
-                                    // }
+                                // else {
+                                //     ++i;
+                                //     if (!(i % 1000)) {
+                                //         console.log('conn', i)
+                                //     }
+                                // }
 
-                                    if (t.client) {
-                                        // client: {
-                                        //     id: '7683898',
-                                        //     remove: 'false',
-                                        //     market: '4',
-                                        //     currency: 'RUB',
-                                        //     type: 'spot',
-                                        //     forts_acc: '7683898'
-                                        //   }
+                                if (t.client) {
+                                    // client: {
+                                    //     id: '7683898',
+                                    //     remove: 'false',
+                                    //     market: '4',
+                                    //     currency: 'RUB',
+                                    //     type: 'spot',
+                                    //     forts_acc: '7683898'
+                                    //   }
 
-                                        this.clients.push(t.client);
+                                    this.clients.push(t.client);
 
-                                        // this.client = t.client;
-                                        // console.log(t.client);
+                                    // this.client = t.client;
+                                    // console.log(t.client);
 
-                                        if (this.accountIdSelected === t.client.id) {
-                                            this.client = { ...t.client };
-                                        }
+                                    if (this.accountIdSelected === t.client.id) {
+                                        this.client = { ...t.client };
                                     }
+                                }
 
-                                    if (t.mc_portfolio) {
-                                        this.portfolioSet(t.mc_portfolio);
-                                    }
+                                if (t.mc_portfolio) {
+                                    this.portfolioSet(t.mc_portfolio);
+                                }
 
                                 // });
 
                                 // return null;
                                 // });
-
                             } catch (e) {
                                 console.log(e); // eslint-disable-line no-console
                             }
@@ -495,23 +470,32 @@ try {
                 },
             );
 
-            process.on('exit', function() {
-                this.disconnect();
+            process.on('exit', () => {
+                this.disconnect(0);
                 const x = ffiCallback;
             });
 
-            const promise = new Promise((resolve) => {
+            // //catches ctrl+c event
+            // process.on('SIGINT', this.disconnect.bind(this));
+
+            // // catches "kill pid" (for example: nodemon restart)
+            // process.on('SIGUSR1', this.disconnect.bind(this));
+            // process.on('SIGUSR2', this.disconnect.bind(this));
+
+            // //catches uncaught exceptions
+            // process.on('uncaughtException', this.disconnect.bind(this));
+
+            const promise = new Promise(resolve => {
                 resolve(
                     this.sdk.Initialize(
                         path.resolve(__dirname, `log/${this.isHFT ? 'hft' : 'default'}`),
-                        1,
+                        2,
                     ),
                 );
             });
 
             try {
-
-                console.log('SetCallback');
+                console.log('SetCallback'); // eslint-disable-line no-console
 
                 this.sdk.SetCallback(ffiCallback);
 
@@ -528,7 +512,7 @@ try {
                     '<language>en</language>' +
                     '<autopos>false</autopos>' +
                     '<session_timeout>200</session_timeout>' +
-                    '<request_timeout>20</request_timeout>' +
+                    '<request_timeout>5</request_timeout>' +
                     closeCommandStr;
 
                 this.sdk.SendCommand(myXMLConnectString);
@@ -551,7 +535,7 @@ try {
             return {
                 units: trunced,
                 nano: price * 1e9 - trunced * 1e9,
-            }
+            };
         }
 
         // checkServerStatusInterval() {
@@ -564,9 +548,9 @@ try {
 
         }
 
-        getQuotes(figi) {
+        getQuotations(figi) {
             const noMarketFigi = this.getNoMarketFigi(this.splitFigi(figi));
-            const q = this.quotes[noMarketFigi] || undefined;
+            const q = this.quotationsAndOrderbook[noMarketFigi] || undefined;
 
             if (q) {
                 const bids = [];
@@ -583,6 +567,7 @@ try {
                 return {
                     bids,
                     asks,
+                    quotations: q.quotations,
                     time: new Date().getTime(),
                 };
             }
@@ -647,6 +632,7 @@ try {
 
         async getHistoryDataActual(seccode, interval, isToday) {
             const sec = await this.getInfoByFigi(seccode);
+
             if (!sec || !sec.seccode || !sec.board) {
                 return;
             }
@@ -694,8 +680,8 @@ try {
             const candleArr = Array.isArray(candles.candle) ? candles.candle : [candles.candle];
 
             for (const c of candleArr) {
-                console.log(c);
-                const time = this.getCandleUnixTime(c['$'].date);
+                // console.log(c);
+                const time = this.getCandleUnixTime(c.date || c['$'].date);
 
                 this.historyCandles[noMarketFigi][candles.period][time] = {
                     ...c,
@@ -719,6 +705,7 @@ try {
 
         async getPortfolioAsync() {
             const p = this.getPortfolio();
+
             p.updated = false;
 
             if (p.infoRequrested) {
@@ -728,10 +715,10 @@ try {
             p.infoRequrested = true;
 
             this.getPortfolioSend();
-            
+
             return new Promise(resolve => {
                 const i = setInterval(() => {
-                    try {    
+                    try {
                         const portfolio = this.getPortfolio();
 
                         if (portfolio.updated) {
@@ -742,23 +729,21 @@ try {
                                 ...portfolio,
                                 security: portfolio.security &&
                                     portfolio.security
-                                    .filter(sec => Number(sec.balance))
-                                    .map(sec => {
-                                        return {
-                                            ...sec,
-                                            figi: this.getNoBoardFigi(sec),
-                                        }
-                                    })
-                            })
+                                        .filter(sec => Number(sec.balance))
+                                        .map(sec => {
+                                            return {
+                                                ...sec,
+                                                figi: this.getNoBoardFigi(sec),
+                                            };
+                                        }),
+                            });
                         }
                     } catch (e) {
-                        console.log(e);
+                        console.log(e); // eslint-disable-line no-console
                     }
                 }, 100);
             });
         }
-
-
 
         getPortfolioSend() {
             try {
@@ -805,14 +790,66 @@ try {
             };
         }
 
+        addFigi(s) {
+            s.ticker = s.seccode;
+            s.figi = this.getFigi(s);
+            s.name = s.shortname;
+
+            return s;
+        }
+
+        setSecurities(securities) {
+            let sec;
+
+            if (!Array.isArray(securities.security)) {
+                sec = [securities.security];
+            } else {
+                sec = securities.security;
+            }
+
+            try {
+                // console.log(t.securities);
+                for (const s of securities.security) {
+                    // console.log(s);
+                    // console.log(typeof s.currency, JSON.stringify(s.currency), Object.keys(s.currency));
+                    // if (!s.currency) {
+                    //     console.log(s);
+                    //     qwe
+                    // }
+                    // if (s.currency === 'RUR') {
+
+                    // s = {
+                    //     ...s,
+                    //     ...s['$'],
+                    //     opmask: s.opmask && {
+                    //         ...s.opmask['$']
+                    //     }
+                    // };
+                    const newSec = this.addFigi(s);
+
+                    if (s.currency === 'RUR') {
+                        if (s.sectype === 'FUT') {
+                            this.futures.push(newSec);
+                        } else if (s.sectype === 'SHARE') {
+                            this.shares.push(newSec);
+                        }
+                    }
+
+                    this.setSecuritiesInfo(newSec.figi, newSec);
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
+
         setSecuritiesInfo(figi, data) {
             if (!this.securities[figi]) {
-                // this.securities[figi] = { ...data };
                 this.securities[figi] = data;
+
                 return;
             }
 
-            // Object.assign(this.securities[figi], data);
+            Object.assign(this.securities[figi], data);
 
             return this.securities[figi];
         }
@@ -836,7 +873,7 @@ try {
 
                 this.sdk.SendCommand(command);
             } catch (e) {
-                console.log('getSecuritiesInfo', e);
+                console.log('getSecuritiesInfo error', e); // eslint-disable-line no-console
             }
         }
 
@@ -864,6 +901,12 @@ try {
             </security>
             …
             </quotations> */
+
+            command += `<quotations><security>
+            <board>${board}</board>
+            <seccode>${seccode}</seccode>
+            </security></quotations>`;
+
             command += `<quotes>
                 <security>
                 <board>${board}</board>
@@ -873,10 +916,10 @@ try {
                 </command>`;
 
             this.subscribes[figi] = true;
-            console.log('subscribe command', figi, command, this.sdk.SendCommand(command));
+            this.sdk.SendCommand(command);
         }
 
-        disconnect() {
+        disconnect(exit = 1) {
             try {
                 this.inProgress = false;
                 this.checkInterval && clearInterval(this.checkInterval);
@@ -885,7 +928,11 @@ try {
                     '<command id="disconnect"/>',
                 );
 
+                console.log('disconnect'); // eslint-disable-line no-console
                 this.sdk.UnInitialize();
+                if (exit) {
+                    process.exit();
+                }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
@@ -897,10 +944,9 @@ try {
     console.log(e); // eslint-disable-line no-console
 }
 
-
 /**
  * struct
- * 
+ *
  * {
   positions: {
     sec_position: [
@@ -928,7 +974,6 @@ try {
     }
   }
 }
-
 
 {
   orders: {
@@ -961,8 +1006,6 @@ try {
   }
 }
 
-
-
 {
   trades: {
     trade: {
@@ -989,7 +1032,5 @@ try {
     }
   }
 }
-
-
 
  */
