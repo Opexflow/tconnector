@@ -111,9 +111,9 @@ try {
                 this.quotationsAndOrderbook = {};
                 this.isFinalInited = false;
 
-                this.orders = [];
-                this.trades = [];
-                this.positions = [];
+                this.orders = {};
+                this.trades = {};
+                this.positions = {};
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
@@ -182,16 +182,16 @@ try {
             const ffiCallback = ffi.Callback(
                 ffi.types.bool,
                 [ref.refType(ffi.types.CString)],
-                async msg => { // eslint-disable-line complexity
-                    // if (!this.isFinalInited && msg.toString() === '<overnig') {
-                    //     console.log('inited');
-                    //     console.log(parseInt(new Date().getTime() - time / 1000, 10));
-                    // }
-
+                async msg => {
                     // let tString = JSON.parse(xml2json.toJson(ref.readCString(msg, 0)));
                     const q = ref.readCString(msg, 0);
 
-                    if (!/(^<quotations|^<messages|^<server_status|^<positions|^<overnight|^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q)) {
+                    // console.log(q.substring(0, 20));
+
+                    if (!q ||
+                        !/(^<quotations|^<messages|^<server_status|^<positions|^<overnight|^<orders|^<trades)/.test(q.substring(0, 20)) &&
+                        !/(^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q.substring(0, 20))
+                    ) {
                         ignored.add(q.substring(0, 15));
                     } else {
                         used.add(q.substring(0, 15));
@@ -202,101 +202,52 @@ try {
                             mergeAttrs: true,
                         }, async (err, t) => { // eslint-disable-line complexity
                             try {
-                            /*
-                            setTimeout(() => {
-                                try {
-
-                                    if (!inited) {
-                                        // if (msg.toString() === '<sec_inf') {
-                                        //     tString = ref.readCString(msg, 0);
-
-                                            if (tString.indexOf('<sec_info_upd') !== -1) {
-                                                // msg && this.sdk.FreeMemory(msg)
-                                                return null;
-                                            }
-                                        // }
-                                    }
-
-                                    // console.log(msg.toString());
-
-                                if (!inited) {
-                                    // const m = msg.toString();
-                                    // if (m === '<sec_inf') {
-                                    //     this.sdk.FreeMemory(msg);
-                                    //     return;
-                                    // }
-                                    if (tString.indexOf('<overnig') !== -1) {
-                                        inited = true;
-                                        console.log('inited!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                                        console.log(new Date().getTime() - time, ((new Date().getTime() - time) / 1000 / 60).toFixed(2));
-                                    }
-                                    // else {
-                                    //     console.log(m);
-
-                                    //     setTimeout(() => {
-                                    //         this.sdk.FreeMemory(msg)
-                                    //     }, 50);
-
-                                    //     return;
-                                    // }
-                                }
-
-                                // if (!inited) {
-                                //     // console.log(msgToString);
-                                //     this.sdk.FreeMemory(msg);
-                                //     return;
-                                // }
-
-                                // callback(ref.readCString(msg, 0), this.isHFT);
-
-                                let ps = new Date().getTime();
-                                // const tString = '' + ref.readCString(msg, 0);
-                                // tString || (tString = ref.readCString(msg, 0));
-
-                                xmlParser(tString, (err, result) => {
-                                    if (err) {
-                                        console.log(err, tString);
-                                    }
-
-                                    const t = result; // JSON.parse(xml2json.toJson(tString));
-                                    parsingTime += new Date().getTime() - ps;
-
-                                    ps = new Date().getTime();
-
-                            */
                                 if (t.server_status && t.server_status.connected === 'error') {
-                                    this.errorMessage = t.server_status['$t'];
+                                    this.errorMessage = t.server_status['$t'] || t.server_status['_'];
 
                                     // {"server_status":{"connected":"error","$t":"Неверный идентификатор, пароль или Touch Memory"}}
                                     // {"server_status":{"sys_ver":"629","build":"18","server_tz":"Russian Standard Time","id":"6","connected":"true"}}
                                 }
 
-                                if (
-                                    !t.markets &&
-                                        !t.candlekinds &&
-                                        !t.securities &&
-                                        !t.pits &&
-                                        !t.sec_info_upd &&
-                                        !t.boards &&
-                                        !t.candles &&
-                                        !t.server_status &&
-                                        !t.client &&
-                                        !t.quotations &&
+                                // if (
+                                //     !t.markets &&
+                                //         !t.candlekinds &&
+                                //         !t.securities &&
+                                //         !t.pits &&
+                                //         !t.sec_info_upd &&
+                                //         !t.boards &&
+                                //         !t.candles &&
+                                //         !t.server_status &&
+                                //         !t.client &&
+                                //         !t.quotations &&
 
-                                        // !t.quotations &&
-                                        !t.overnight &&
-                                        !t.mc_portfolio &&
-                                        !t.positions &&
-                                        !t.news_header &&
-                                        !t.quotes
-                                ) {
-                                    // Отслеживаем необработанные сообщения.
-                                    // console.log(tString); // eslint-disable-line no-console
-                                    console.log(t); // eslint-disable-line no-console
+                                //         // !t.quotations &&
+                                //         !t.overnight &&
+                                //         !t.mc_portfolio &&
+                                //         !t.positions &&
+                                //         !t.news_header &&
+                                //         !t.quotes
+                                // ) {
+                                //     // Отслеживаем необработанные сообщения.
+                                //     // console.log(tString); // eslint-disable-line no-console
+                                //     console.log(t); // eslint-disable-line no-console
+                                // }
+
+                                if (t.messages) {
+                                    this.messages = [...this.getWithArr(t.messages.message)];
                                 }
 
                                 if (t.positions) {
-                                    // console.log(JSON.stringify(t.positions.sec_position, null, 4));
+                                    // console.log('positions', JSON.stringify(t.positions, null, 4));
+                                    this.savePositions(t.positions);
+                                }
+
+                                if (t.orders) {
+                                    this.saveOrders(t.orders);
+                                }
+
+                                if (t.trades) {
+                                    this.saveTrades(t.trades);
                                 }
 
                                 if (!this.isFinalInited && t.overnight) {
@@ -377,43 +328,7 @@ try {
                                 }
 
                                 if (t.quotes) {
-                                    const quote = Array.isArray(t.quotes.quote) ? t.quotes.quote : [t.quotes.quote];
-
-                                    for (const s of quote) {
-                                        const figi = this.getNoMarketFigi(s);
-
-                                        if (!this.quotationsAndOrderbook[figi]) {
-                                            this.quotationsAndOrderbook[figi] = {
-                                                bids: {}, // покупка
-                                                asks: {}, // продажа
-                                                quotations: {},
-                                            };
-                                        }
-
-                                        let { price, buy, sell } = s;
-
-                                        buy = Number(buy);
-                                        sell = Number(sell);
-                                        price = parseFloat(price);
-
-                                        if (!buy || buy <= 0) {
-                                            delete this.quotationsAndOrderbook[figi].bids[price];
-                                        } else {
-                                            this.quotationsAndOrderbook[figi].bids[price] = {
-                                                quantity: buy,
-                                                price: parseFloat(price),
-                                            };
-                                        }
-
-                                        if (!sell || sell <= 0) {
-                                            delete this.quotationsAndOrderbook[figi].asks[price];
-                                        } else {
-                                            this.quotationsAndOrderbook[figi].asks[price] = {
-                                                quantity: sell,
-                                                price: parseFloat(price),
-                                            };
-                                        }
-                                    }
+                                    this.saveQuotes(t.quotes);
                                 }
 
                                 // else {
@@ -475,7 +390,7 @@ try {
                 const x = ffiCallback;
             });
 
-            // //catches ctrl+c event
+            //catches ctrl+c event
             // process.on('SIGINT', this.disconnect.bind(this));
 
             // // catches "kill pid" (for example: nodemon restart)
@@ -544,8 +459,128 @@ try {
         //     }, 5000);
         // }
 
-        saveOrders(orders) {
+        savePositions(positions) {
+            try {
+                Object.keys(positions).forEach(p => {
+                    if (!this.positions[p]) {
+                        this.positions[p] = {};
+                    }
 
+                    const positionArr = this.getWithArr(this.positions[p]);
+
+                    // for (const p of positionArr) {
+
+                    // }
+                });
+            } catch (e) {
+                console.log('savePositions', e); // eslint-disable-line no-console
+            }
+        }
+
+        getWithArr(val) {
+            return Array.isArray(val) ? val : [val];
+        }
+
+        getTradesKey(tradeno, orderno) {
+            return `${tradeno || 0}+${orderno || 0}`;
+        }
+
+        saveTrades(trades) {
+            try {
+                const tradesArr = this.getWithArr(trades.trade);
+
+                for (const t of tradesArr) {
+                    const key = this.getTradesKey(t.tradeno, t.orderno);
+
+                    if (!this.trades[key]) {
+                        this.trades[key] = { ...t };
+                    } else {
+                        Object.assign(this.trades[key], t);
+                    }
+                }
+            } catch (e) {
+                console.log('saveTrades', e); // eslint-disable-line no-console
+            }
+        }
+
+        _delOldOrders(figi, transactionid) {
+            const key = this.getTradesKey(transactionid);
+
+            if (this.orders[figi] && this.orders[figi][key]) {
+                delete this.orders[figi][key];
+            }
+        }
+
+        saveOrders(orders) {
+            try {
+                const order = this.getWithArr(orders.order);
+
+                for (const s of order) {
+                    const figi = this.getNoMarketFigi(s);
+
+                    if (!this.orders[figi]) {
+                        this.orders[figi] = {};
+                    }
+
+                    if (Number(s.transactionid) && Number(s.orderno)) {
+                        this._delOldOrders(figi, s.transactionid);
+                    }
+
+                    const key = this.getTradesKey(s.transactionid, s.orderno);
+
+                    if (!this.orders[figi][key]) {
+                        this.orders[figi][key] = { ...s };
+                    } else {
+                        Object.assign(this.orders[figi][key], s);
+                    }
+                }
+            } catch (e) {
+                console.log('saveOrders', e); // eslint-disable-line no-console
+            }
+        }
+
+        saveQuotes(quotes) {
+            try {
+                const quote = Array.isArray(quotes.quote) ? quotes.quote : [quotes.quote];
+
+                for (const s of quote) {
+                    const figi = this.getNoMarketFigi(s);
+
+                    if (!this.quotationsAndOrderbook[figi]) {
+                        this.quotationsAndOrderbook[figi] = {
+                            bids: {}, // покупка
+                            asks: {}, // продажа
+                            quotations: {},
+                        };
+                    }
+
+                    let { price, buy, sell } = s;
+
+                    buy = Number(buy);
+                    sell = Number(sell);
+                    price = parseFloat(price);
+
+                    if (!buy || buy <= 0) {
+                        delete this.quotationsAndOrderbook[figi].bids[price];
+                    } else {
+                        this.quotationsAndOrderbook[figi].bids[price] = {
+                            quantity: buy,
+                            price: parseFloat(price),
+                        };
+                    }
+
+                    if (!sell || sell <= 0) {
+                        delete this.quotationsAndOrderbook[figi].asks[price];
+                    } else {
+                        this.quotationsAndOrderbook[figi].asks[price] = {
+                            quantity: sell,
+                            price: parseFloat(price),
+                        };
+                    }
+                }
+            } catch (e) {
+                console.log('saveQuotes', e); // eslint-disable-line no-console
+            }
         }
 
         getQuotations(figi) {
@@ -579,6 +614,60 @@ try {
 
         getClientUnion() {
             return this.client?.union || undefined;
+        }
+
+        async newOrder(figi, price, quantity, buysell, robotName) {
+            const { seccode, board } = this.splitFigi(figi);
+
+            let command = `<command id="neworder"><security>
+                <board>${board}</board>
+                <seccode>${seccode}</seccode>
+                </security>
+                ${this.getUserCode(false)}
+                <price>${price}</price>`;
+
+            // <hidden>скрытое количество в лотах</hidden>
+
+            command += `<quantity>${quantity}</quantity>
+                <buysell>${buysell}</buysell>
+                <bymarket/>
+                <brokerref>${robotName.substring(0, 3)}</brokerref>
+                <unfilled>IOC</unfilled>
+                <nosplit/>
+            </command>`;
+
+            // <brokerref>${robotName.substring(0,3)}</brokerref> Длина этого поля сильно ограничена.
+
+            // <usecredit/>
+            // <expdate>дата экспирации (только для ФОРТС)</expdate>
+            // (задается в формате 23.07.2012 00:00:00 (не обязательно)
+
+            // console.log(command);
+
+            // <result success="true" transactionid="id"
+            const r = this.sdk.SendCommand(command);
+            const { result } = JSON.parse(xml2json.toJson(r));
+
+            // console.log(result);
+            // console.log(r);
+
+            const transaqtionId = result.transactionid;
+
+            if (!result || result.success === 'false') {
+                return result.message;
+            }
+
+            return new Promise(resolve => {
+                const i = setInterval(() => {
+                    const key = this.getTradesKey(transaqtionId);
+
+                    if (this.orders[key]) {
+                        // console.log('Promise key', key, this.orders[key]);
+                        clearInterval(i);
+                        resolve(true);
+                    }
+                }, 20);
+            });
         }
 
         setSelectedAccountId(id) {
@@ -624,10 +713,28 @@ try {
                     errorMessage: this.errorMessage,
                     connected: this.connected,
                     isFinalInited: this.isFinalInited,
+                    messages: this.messages,
+                    token: this.token,
                 };
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+        }
+
+        changePassword(oldpass, newpass) {
+            const command = `<command id="change_pass"
+                oldpass="${oldpass}"
+                newpass="${newpass}"
+            />`;
+
+            const r = JSON.parse(xml2json.toJson(this.sdk.SendCommand(command)));
+
+            if (r?.result?.success === 'true') {
+                this.messages = [];
+                delete this.errorMessage;
+            }
+
+            return r;
         }
 
         async getHistoryDataActual(seccode, interval, isToday) {
@@ -747,14 +854,12 @@ try {
 
         getPortfolioSend() {
             try {
-                const clientId = this.getClientId();
-                const union = this.getClientUnion();
+                const user = this.getUserCode();
 
-                if (!clientId && !union) {
+                if (!user) {
                     return;
                 }
 
-                const user = union ? `union="${union}"` : `client="${clientId}"`;
                 const myXMLConnectString = `<command id="get_mc_portfolio" ${user} 
                     currency="true" asset="true" money="true" depo="true"
                     registers="true" maxbs="true"/></command>`;
@@ -763,6 +868,20 @@ try {
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+        }
+
+        getUserCode(equality = true) {
+            const clientId = this.getClientId();
+            const union = this.getClientUnion();
+
+            if (!clientId && !union) {
+                return;
+            }
+            if (equality) {
+                return union ? `union="${union}"` : `client="${clientId}"`;
+            }
+
+            return union ? `<union>${union}</union>` : `<client>${clientId}</client>`;
         }
 
         getPortfolio() {
