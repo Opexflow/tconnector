@@ -131,11 +131,11 @@ try {
                         }
                     }, 100);
                 } else {
-                    resolve({
-                        ...this.securities[figi],
-                        noBoardFigi: this.getNoBoardFigi(this.securities[figi]),
-                        noMarketFigi: this.getNoMarketFigi(this.securities[figi]),
-                    });
+                    resolve(this.securities[figi]); // {
+                    //     ...this.securities[figi],
+                    //     // noBoardFigi: this.getNoBoardFigi(this.securities[figi]),
+                    //     // noMarketFigi: this.getNoMarketFigi(this.securities[figi]),
+                    // });
                 }
             });
         }
@@ -189,8 +189,7 @@ try {
                     // console.log(q.substring(0, 20));
 
                     if (!q ||
-                        !/(^<quotations|^<messages|^<server_status|^<positions|^<overnight|^<orders|^<trades)/.test(q.substring(0, 20)) &&
-                        !/(^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q.substring(0, 20))
+                        !/(^<quotations|^<messages|^<server_status|^<positions|^<overnight|^<orders|^<trades|^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q.substring(0, 20))
                     ) {
                         ignored.add(q.substring(0, 15));
                     } else {
@@ -386,7 +385,7 @@ try {
             );
 
             process.on('exit', () => {
-                this.disconnect(0);
+                this.disconnect();
                 const x = ffiCallback;
             });
 
@@ -398,7 +397,18 @@ try {
             // process.on('SIGUSR2', this.disconnect.bind(this));
 
             // //catches uncaught exceptions
-            // process.on('uncaughtException', this.disconnect.bind(this));
+            process.on('uncaughtException', this.disconnect.bind(this));
+
+            process
+                .on('unhandledRejection', (reason, p) => {
+                    console.error(reason, 'Unhandled Rejection at Promise', p);
+                    this.disconnect();
+                })
+                .on('uncaughtException', err => {
+                    console.error(err, 'Uncaught Exception thrown');
+                    this.disconnect();
+                    process.exit(1);
+                });
 
             const promise = new Promise(resolve => {
                 resolve(
@@ -427,7 +437,7 @@ try {
                     '<language>en</language>' +
                     '<autopos>false</autopos>' +
                     '<session_timeout>200</session_timeout>' +
-                    '<request_timeout>5</request_timeout>' +
+                    '<request_timeout>20</request_timeout>' +
                     closeCommandStr;
 
                 this.sdk.SendCommand(myXMLConnectString);
@@ -468,9 +478,9 @@ try {
 
                     const positionArr = this.getWithArr(this.positions[p]);
 
-                    // for (const p of positionArr) {
+                    for (const p of positionArr) {
 
-                    // }
+                    }
                 });
             } catch (e) {
                 console.log('savePositions', e); // eslint-disable-line no-console
@@ -511,6 +521,18 @@ try {
             }
         }
 
+        getOrders(figi) {
+            const noMarketFigi = this.getNoMarketFigi(this.splitFigi(figi));
+
+            if (this.orders[noMarketFigi]) {
+                return Object.keys(this.orders[noMarketFigi]).map(key => {
+                    return this.orders[noMarketFigi][key];
+                });
+            }
+
+            return [];
+        }
+
         saveOrders(orders) {
             try {
                 const order = this.getWithArr(orders.order);
@@ -527,16 +549,44 @@ try {
                     }
 
                     const key = this.getTradesKey(s.transactionid, s.orderno);
+                    let delExecStatus = false;
+
+                    if (['active', 'forwarding', 'inactive', 'wait', 'watching'].includes(s.status)) {
+                        // Подстановка под проверку робота (EXECUTION_REPORT_STATUS_NEW (4))
+                        s.executionReportStatus = 4;
+                    } else {
+                        delExecStatus = true;
+                    }
+
+                    s.lotsRequested = s.quantity;
+                    s.initialOrderPrice = s.price;
+                    s.direction = s.buysell === 'B' ? 1 : 2;
+                    s.orderId = s.transactionid;
 
                     if (!this.orders[figi][key]) {
-                        this.orders[figi][key] = { ...s };
+                        this.orders[figi][key] = {
+                            ...s,
+                            figi,
+                        };
                     } else {
                         Object.assign(this.orders[figi][key], s);
+
+                        if (delExecStatus) {
+                            delete this.orders[figi][key].executionReportStatus;
+                        }
                     }
                 }
             } catch (e) {
                 console.log('saveOrders', e); // eslint-disable-line no-console
             }
+        }
+
+        cancelOrder(transactionid) {
+            const command = `<command id="cancelorder">
+                <transactionid>${transactionid}</transactionid>
+            </command>`;
+
+            console.log('cancelOrder', this.sdk.SendCommand(command));
         }
 
         saveQuotes(quotes) {
@@ -616,7 +666,7 @@ try {
             return this.client?.union || undefined;
         }
 
-        async newOrder(figi, price, quantity, buysell, robotName) {
+        async newOrder(figi, price, quantity, buysell, robotName, options) {
             const { seccode, board } = this.splitFigi(figi);
 
             let command = `<command id="neworder"><security>
@@ -630,11 +680,15 @@ try {
 
             command += `<quantity>${quantity}</quantity>
                 <buysell>${buysell}</buysell>
-                <bymarket/>
-                <brokerref>${robotName.substring(0, 3)}</brokerref>
-                <unfilled>IOC</unfilled>
                 <nosplit/>
+                <brokerref>${robotName.substring(0, 3)}</brokerref>
+                <unfilled>PutInQueue</unfilled>
             </command>`;
+
+            console.log(command);
+
+            // <nosplit/>
+            // <bymarket/>
 
             // <brokerref>${robotName.substring(0,3)}</brokerref> Длина этого поля сильно ограничена.
 
@@ -648,25 +702,42 @@ try {
             const r = this.sdk.SendCommand(command);
             const { result } = JSON.parse(xml2json.toJson(r));
 
-            // console.log(result);
-            // console.log(r);
-
             const transaqtionId = result.transactionid;
 
             if (!result || result.success === 'false') {
                 return result.message;
             }
 
-            return new Promise(resolve => {
-                const i = setInterval(() => {
-                    const key = this.getTradesKey(transaqtionId);
+            const noMarketFigi = this.getNoMarketFigi(this.splitFigi(figi));
 
-                    if (this.orders[key]) {
-                        // console.log('Promise key', key, this.orders[key]);
-                        clearInterval(i);
-                        resolve(true);
-                    }
-                }, 20);
+            return new Promise(resolve => {
+                try {
+                    const i = setInterval(() => {
+                        try {
+                            const key = this.getTradesKey(transaqtionId);
+
+                            if (this.orders[noMarketFigi][key]) {
+                                clearInterval(i);
+                                resolve(this.orders[noMarketFigi][key]);
+
+                                return true;
+                            } else {
+                                Object.keys(this.orders[noMarketFigi]).some((s, k) => {
+                                    if (this.orders[noMarketFigi][s].transactionid === transaqtionId) {
+                                        clearInterval(i);
+                                        resolve(this.orders[noMarketFigi][s]);
+
+                                        return true;
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.log('neworderpromise', e);
+                        }
+                    }, 50);
+                } catch (e) {
+                    console.log('neworderpromise', e);
+                }
             });
         }
 
@@ -710,10 +781,10 @@ try {
                 return {
                     ...answer,
                     accountId: this.getClientId(),
-                    errorMessage: this.errorMessage,
+                    errorMessage: this.errorMessage || '',
                     connected: this.connected,
                     isFinalInited: this.isFinalInited,
-                    messages: this.messages,
+                    messages: this.messages || [],
                     token: this.token,
                 };
             } catch (e) {
@@ -838,9 +909,21 @@ try {
                                     portfolio.security
                                         .filter(sec => Number(sec.balance))
                                         .map(sec => {
+                                            const figi = this.getNoBoardFigi(sec);
+                                            const secInfo = this.getFromObjectByField(this.securities, 'noBoardFigi', figi);
+
                                             return {
                                                 ...sec,
-                                                figi: this.getNoBoardFigi(sec),
+                                                figi,
+                                                averagePositionPrice: sec.balance_prc,
+                                                quantity: { units: sec.balance },
+                                                expectedYield: sec.unrealized_pnl,
+
+                                                // Если баланс больше нуля, топозиция long.
+                                                direction: sec.balance > 0 ? 1 : 2,
+                                                quantityLots: {
+                                                    units: secInfo && parseInt(sec.balance / secInfo.lotsize, 10),
+                                                },
                                             };
                                         }),
                             });
@@ -850,6 +933,14 @@ try {
                     }
                 }, 100);
             });
+        }
+
+        getFromObjectByField(obj, field, value) {
+            try {
+                return obj[Object.keys(obj).find(s => this.securities[s][field] === value)];
+            } catch (e) {
+                console.log('getFromObjectByField', e);
+            }
         }
 
         getPortfolioSend() {
@@ -918,17 +1009,11 @@ try {
         }
 
         setSecurities(securities) {
-            let sec;
-
-            if (!Array.isArray(securities.security)) {
-                sec = [securities.security];
-            } else {
-                sec = securities.security;
-            }
+            const sec = this.getWithArr(securities.security);
 
             try {
                 // console.log(t.securities);
-                for (const s of securities.security) {
+                for (const s of sec) {
                     // console.log(s);
                     // console.log(typeof s.currency, JSON.stringify(s.currency), Object.keys(s.currency));
                     // if (!s.currency) {
@@ -964,6 +1049,9 @@ try {
         setSecuritiesInfo(figi, data) {
             if (!this.securities[figi]) {
                 this.securities[figi] = data;
+
+                this.securities[figi].noBoardFigi = this.getNoBoardFigi(this.securities[figi]);
+                this.securities[figi].noMarketFigi = this.getNoMarketFigi(this.securities[figi]);
 
                 return;
             }
@@ -1038,7 +1126,7 @@ try {
             this.sdk.SendCommand(command);
         }
 
-        disconnect(exit = 1) {
+        disconnect() {
             try {
                 this.inProgress = false;
                 this.checkInterval && clearInterval(this.checkInterval);
@@ -1048,10 +1136,9 @@ try {
                 );
 
                 console.log('disconnect'); // eslint-disable-line no-console
+                console.trace();
+
                 this.sdk.UnInitialize();
-                if (exit) {
-                    process.exit();
-                }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
