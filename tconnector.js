@@ -84,19 +84,8 @@ const dllFunctions = {
 
 try {
     class TConnector {
-        constructor(hft = false, host = 'tr1.finam.ru', port = 3900) {
+        constructor() {
             try {
-                this.isHFT = Boolean(hft);
-                this.host = host;
-                this.port = port;
-
-                const dllFile = config.dllFiles[this.isHFT ? 'Hft' : 'NotHft'];
-
-                this.sdk = ffi.Library(
-                    path.resolve(__dirname, dllFile),
-                    dllFunctions,
-                );
-
                 this.clients = [];
                 this.client = false;
                 this.accountIdSelected;
@@ -167,6 +156,17 @@ try {
         }
 
         async connect(login, password, accountId) { // eslint-disable-line sonarjs/cognitive-complexity
+            this.isHFT = login.substring(0, 4) === 'FZHF';
+            this.host = this.isHFT ? 'hft.finam.ru' : 'tr1.finam.ru';
+            this.port = this.isHFT ? 13900 : 3900;
+
+            const dllFile = config.dllFiles[this.isHFT ? 'Hft' : 'NotHft'];
+
+            this.sdk = ffi.Library(
+                path.resolve(__dirname, dllFile),
+                dllFunctions,
+            );
+
             this.inProgress = true;
             this.token = login;
             this.accountIdSelected = accountId;
@@ -186,7 +186,7 @@ try {
                     // let tString = JSON.parse(xml2json.toJson(ref.readCString(msg, 0)));
                     const q = ref.readCString(msg, 0);
 
-                    // console.log(q.substring(0, 20));
+                    // console.log(q); //.substring(0, 20));
 
                     if (!q ||
                         !/(^<quotations|^<messages|^<server_status|^<positions|^<overnight|^<orders|^<trades|^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q.substring(0, 20))
@@ -435,9 +435,12 @@ try {
                     `<host>${this.host}</host>` +
                     `<port>${this.port}</port>` +
                     '<language>en</language>' +
-                    '<autopos>false</autopos>' +
-                    '<session_timeout>200</session_timeout>' +
+                    '<autopos>true</autopos>' +
+                    '<session_timeout>120</session_timeout>' +
                     '<request_timeout>20</request_timeout>' +
+                    '<push_u_limits>10</push_u_limits>' +
+                    '<push_pos_equity>10</push_pos_equity>' +
+                    '<rqdelay>10</rqdelay>' +
                     closeCommandStr;
 
                 this.sdk.SendCommand(myXMLConnectString);
@@ -666,21 +669,45 @@ try {
             return this.client?.union || undefined;
         }
 
+        getPrice(quotation) {
+            if (!quotation || typeof quotation !== 'object') {
+                return quotation;
+            }
+
+            if (quotation.nano) {
+                return quotation.units + quotation.nano / 1e9;
+            }
+
+            return quotation.units;
+        }
+
+        /**
+         *
+         * @param {*} figi
+         * @param {*} price - если ноль, то выставляем по рынку.
+         * @param {*} quantity
+         * @param {*} buysell
+         * @param {*} robotName
+         * @param {*} options
+         * @returns
+         */
         async newOrder(figi, price, quantity, buysell, robotName, options) {
             const { seccode, board } = this.splitFigi(figi);
+
+            console.log(figi, price, this.getPrice(price), quantity, buysell, robotName);
 
             let command = `<command id="neworder"><security>
                 <board>${board}</board>
                 <seccode>${seccode}</seccode>
                 </security>
-                ${this.getUserCode(false)}
-                <price>${price}</price>`;
+                ${this.getUserCode(false)}`;
+
+            command += price ? `<price>${this.getPrice(price)}</price><nosplit/>` : '<bymarket/>';
 
             // <hidden>скрытое количество в лотах</hidden>
 
             command += `<quantity>${quantity}</quantity>
                 <buysell>${buysell}</buysell>
-                <nosplit/>
                 <brokerref>${robotName.substring(0, 3)}</brokerref>
                 <unfilled>PutInQueue</unfilled>
             </command>`;
@@ -701,6 +728,8 @@ try {
             // <result success="true" transactionid="id"
             const r = this.sdk.SendCommand(command);
             const { result } = JSON.parse(xml2json.toJson(r));
+
+            console.log(r, result);
 
             const transaqtionId = result.transactionid;
 
