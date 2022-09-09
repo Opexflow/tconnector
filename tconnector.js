@@ -102,6 +102,7 @@ try {
 
                 this.orders = {};
                 this.trades = {};
+                this.allTrades = {};
                 this.positions = {};
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
@@ -186,11 +187,15 @@ try {
                     // let tString = JSON.parse(xml2json.toJson(ref.readCString(msg, 0)));
                     const q = ref.readCString(msg, 0);
 
-                    // console.log(q); //.substring(0, 20));
+                    console.log(q.substring(0, 120));
 
                     if (!q ||
-                        !/(^<quotations|^<messages|^<server_status|^<positions|^<overnight|^<orders|^<trades|^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q.substring(0, 20))
+                        !/(^<quotations|^<alltrades|^<messages|^<server_status|^<positions|^<overnight|^<orders|^<trades|^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q.substring(0, 20))
                     ) {
+                        if (this.isFinalInited && !ignored.has(q.substring(0, 15))) {
+                            console.log('ignored after inited: ', q.substring(0, 15));
+                        }
+
                         ignored.add(q.substring(0, 15));
                     } else {
                         used.add(q.substring(0, 15));
@@ -201,6 +206,7 @@ try {
                             mergeAttrs: true,
                         }, async (err, t) => { // eslint-disable-line complexity
                             try {
+                                // console.log(JSON.stringify(t));
                                 if (t.server_status && t.server_status.connected === 'error') {
                                     this.errorMessage = t.server_status['$t'] || t.server_status['_'];
 
@@ -249,12 +255,18 @@ try {
                                     this.saveTrades(t.trades);
                                 }
 
+                                if (t.alltrades) {
+                                    this.saveAllTrades(t.alltrades);
+                                }
+
                                 if (!this.isFinalInited && t.overnight) {
                                     this.isFinalInited = true;
                                     console.log('inited', parseInt((new Date().getTime() - time) / 1000, 10)); // eslint-disable-line no-console
 
                                     console.log('ignored: ', [...ignored].join(', ')); // eslint-disable-line no-console
                                     console.log('used: ', [...used].join(', ')); // eslint-disable-line no-console
+
+                                    this.subscribeAll();
                                 }
 
                                 if (t.sec_info) {
@@ -308,6 +320,8 @@ try {
                                 }
 
                                 if (t.quotations) {
+                                    this.logQuotations || (this.logQuotations = {});
+
                                     const quote = Array.isArray(t.quotations.quotation) ?
                                         t.quotations.quotation : [t.quotations.quotation];
 
@@ -323,6 +337,12 @@ try {
                                         }
 
                                         Object.assign(this.quotationsAndOrderbook[figi].quotations, s);
+
+                                        if (!this.logQuotations[figi]) {
+                                            this.logQuotations[figi] = [];
+                                        }
+
+                                        this.logQuotations[figi].push(s);
                                     }
                                 }
 
@@ -436,8 +456,8 @@ try {
                     `<port>${this.port}</port>` +
                     '<language>en</language>' +
                     '<autopos>true</autopos>' +
-                    '<session_timeout>120</session_timeout>' +
-                    '<request_timeout>20</request_timeout>' +
+                    '<session_timeout>600</session_timeout>' +
+                    '<request_timeout>100</request_timeout>' +
                     '<push_u_limits>10</push_u_limits>' +
                     '<push_pos_equity>10</push_pos_equity>' +
                     '<rqdelay>10</rqdelay>' +
@@ -510,6 +530,29 @@ try {
                     } else {
                         Object.assign(this.trades[key], t);
                     }
+                }
+            } catch (e) {
+                console.log('saveTrades', e); // eslint-disable-line no-console
+            }
+        }
+
+        saveAllTrades(trades) {
+            try {
+                this.logAllTrades || (this.logAllTrades = {});
+
+                const tradesArr = this.getWithArr(trades.trade);
+
+                for (const t of tradesArr) {
+                    const key = this.getNoMarketFigi(t);
+
+                    if (!this.allTrades[key]) {
+                        this.allTrades[key] = { ...t };
+                        this.logAllTrades[key] = [];
+                    } else {
+                        Object.assign(this.allTrades[key], t);
+                    }
+
+                    this.logAllTrades[key].push(t);
                 }
             } catch (e) {
                 console.log('saveTrades', e); // eslint-disable-line no-console
@@ -596,6 +639,8 @@ try {
             try {
                 const quote = Array.isArray(quotes.quote) ? quotes.quote : [quotes.quote];
 
+                this.logAllQuotes || (this.logAllQuotes = {});
+
                 for (const s of quote) {
                     const figi = this.getNoMarketFigi(s);
 
@@ -630,6 +675,11 @@ try {
                             price: parseFloat(price),
                         };
                     }
+
+                    if (!this.logAllQuotes[figi]) {
+                        this.logAllQuotes[figi] = [];
+                    }
+                    this.logAllQuotes[figi].push(s);
                 }
             } catch (e) {
                 console.log('saveQuotes', e); // eslint-disable-line no-console
@@ -1043,21 +1093,6 @@ try {
             try {
                 // console.log(t.securities);
                 for (const s of sec) {
-                    // console.log(s);
-                    // console.log(typeof s.currency, JSON.stringify(s.currency), Object.keys(s.currency));
-                    // if (!s.currency) {
-                    //     console.log(s);
-                    //     qwe
-                    // }
-                    // if (s.currency === 'RUR') {
-
-                    // s = {
-                    //     ...s,
-                    //     ...s['$'],
-                    //     opmask: s.opmask && {
-                    //         ...s.opmask['$']
-                    //     }
-                    // };
                     const newSec = this.addFigi(s);
 
                     if (s.currency === 'RUR') {
@@ -1113,6 +1148,46 @@ try {
             }
         }
 
+        subscribeAll(subscribe = 1) {
+            let command = `<command id="${subscribe ? 'subscribe' : 'unsubscribe'}">`;
+            let alltrades = '<alltrades>';
+            let quotations = '<quotations>';
+            let quotes = '<quotes>';
+
+            [...Object.keys(this.shares), ...Object.keys(this.futures)].forEach(f => {
+                const figi = this.shares[f].figi || this.futures[f].figi;
+
+                const { seccode, board } = this.splitFigi(figi);
+
+                // console.log(['SBER;TQBR;1', 'GMKN;TQBR;1', 'GMKN;SPFEQ;7', 'LKOH;TQBR;1', 'PLZL;TQBR;1'].includes(figi))
+                if (this.subscribes[seccode + ' ' + board]
+                //  || !['SBER;TQBR;1' // , 'GMKN;TQBR;1', 'GMKN;SPFEQ;7', 'LKOH;TQBR;1', 'PLZL;TQBR;1'
+                // ].includes(figi)
+                ) {
+                    return;
+                }
+
+                // console.log('ok', figi);
+
+                alltrades += `<security><board>${board}</board><seccode>${seccode}</seccode></security>`;
+
+                quotations += `<security><board>${board}</board><seccode>${seccode}</seccode></security>`;
+
+                quotes += `<security><board>${board}</board><seccode>${seccode}</seccode></security>`;
+
+                this.subscribes[seccode + ' ' + board] = true;
+            });
+
+            alltrades += '</alltrades>';
+            quotations += '</quotations>';
+            quotes += '</quotes>';
+
+            command += alltrades + quotations + quotes + '</command>';
+
+            console.log(command);
+            console.log('subscribeall', this.sdk.SendCommand(command));
+        }
+
         subscribe(figi, subscribe = 1) {
             if (this.subscribes[figi]) {
                 return;
@@ -1123,33 +1198,25 @@ try {
 
             let command = `<command id="${subscribe ? 'subscribe' : 'unsubscribe'}">`;
 
-            /* <alltrades> - подписка на сделки рынка
-            <security>
-            <board> идентификатор режима торгов</board>
-            <seccode>код инструмента</seccode>
-            </security>
-            …
-            </alltrades>
-            <quotations> - подписка на изменения показателей торгов
-            <security>
-            <board> идентификатор режима торгов</board>
-            <seccode>код инструмента</seccode>
-            </security>
-            …
-            </quotations> */
+            command += `<alltrades>
+                <security><board>${board}</board>
+                <seccode>${seccode}</seccode>
+                </security>
+                </alltrades>`;
 
             command += `<quotations><security>
-            <board>${board}</board>
-            <seccode>${seccode}</seccode>
-            </security></quotations>`;
+                <board>${board}</board>
+                <seccode>${seccode}</seccode>
+                </security></quotations>`;
 
             command += `<quotes>
                 <security>
                 <board>${board}</board>
                 <seccode>${seccode}</seccode>
                 </security>
-                </quotes>
-                </command>`;
+                </quotes>`;
+
+            command += '</command>';
 
             this.subscribes[figi] = true;
             this.sdk.SendCommand(command);
