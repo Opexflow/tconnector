@@ -31,45 +31,6 @@ const closeSecurityStr = '</security>';
 
 const config = require(path.resolve(__dirname, 'config.json'));
 
-/*
-         server_status
-             http://127.0.0.1:12345/?command=server_status&this.isHFT=NotHft
-             http://127.0.0.1:12345/?command=server_status&this.isHFT=Hft
-         get_securities
-             http://127.0.0.1:12345/?command=get_securities&this.isHFT=NotHft
-             http://127.0.0.1:12345/?command=get_securities&this.isHFT=Hft
-         get_portfolio
-             http://127.0.0.1:12345/?command=get_portfolio&this.isHFT=NotHft
-             http://127.0.0.1:12345/?command=get_portfolio&this.isHFT=Hft
-         get_forts_positions
-             http://127.0.0.1:12345/?command=get_forts_positions&this.isHFT=NotHft
-             http://127.0.0.1:12345/?command=get_forts_positions&this.isHFT=Hft
-         gethistorydata
-            5-минутная история
-             http://127.0.0.1:12345/?command=gethistorydata&period=2&count=162&reset=true&this.isHFT=NotHft
-             часовая
-             http://127.0.0.1:12345/?command=gethistorydata&period=4&count=14&reset=true&this.isHFT=NotHft
-         neworder
-            http://127.0.0.1:12345?command=neworder&buysell=buy&orderprice=40000&quantity=1&this.isHFT=NotHft&ismarket=true
-            http://127.0.0.1:12345?command=neworder&buysell=sell&orderprice=90000&quantity=1&this.isHFT=NotHft&ismarket=true
-            http://127.0.0.1:12345?command=neworder&buysell=buy&orderprice=40000&quantity=1&this.isHFT=Hft&ismarket=true
-            http://127.0.0.1:12345?command=neworder&buysell=sell&orderprice=90000&quantity=1&this.isHFT=Hft&ismarket=true
-         newstoporder
-            http://127.0.0.1:12345?command=newstoporder&buysell=buy&orderprice=40000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&this.isHFT=NotHft
-            http://127.0.0.1:12345?command=newstoporder&buysell=sell&orderprice=90000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&this.isHFT=NotHft
-            http://127.0.0.1:12345?command=newstoporder&buysell=buy&orderprice=40000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&this.isHFT=Hft
-            http://127.0.0.1:12345?command=newstoporder&buysell=sell&orderprice=90000&quantity=1&stoplosspercent=3.3&takeprofitpercent=5.8&this.isHFT=Hft
-        newcondorder
-            http://127.0.0.1:12345?command=newcondorder&buysell=sell&orderprice=90000&quantity=1&cond_type=LastUp&cond_value=90000&condorder=true&this.isHFT=NotHft
-            http://127.0.0.1:12345?command=newcondorder&buysell=sell&orderprice=90000&quantity=1&cond_type=LastUp&cond_value=90000&condorder=true&this.isHFT=Hft
-        cancelorder
-            http://127.0.0.1:12345/?command=cancelorder&orderId=10703545&this.isHFT=NotHft
-            http://127.0.0.1:12345/?command=cancelorder&orderId=10703545&this.isHFT=Hft
-        cancelstoporder
-            http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&this.isHFT=NotHft
-            http://127.0.0.1:12345/?command=cancelstoporder&orderId=27499316&this.isHFT=Hft
-        * */
-
 // #region функции в dll
 const dllFunctions = {
     Initialize: [ffi.types.CString, [ffi.types.CString, ffi.types.int32]],
@@ -79,8 +40,6 @@ const dllFunctions = {
     SetCallback: [ffi.types.bool, ['pointer']],
     SetCallbackEx: [ffi.types.bool, ['pointer', ffi.types.CString]],
 };
-
-// let i = 0;
 
 try {
     class TConnector {
@@ -187,13 +146,13 @@ try {
                     // let tString = JSON.parse(xml2json.toJson(ref.readCString(msg, 0)));
                     const q = ref.readCString(msg, 0);
 
-                    console.log(q.substring(0, 120));
+                    // console.log(q.substring(0, 120));
 
                     if (!q ||
                         !/(^<quotations|^<alltrades|^<messages|^<server_status|^<positions|^<overnight|^<orders|^<trades|^<sec_info>|^<securities|^<pits|^<quotes|^<client|^<candles|^<mc_portfolio)/.test(q.substring(0, 20))
                     ) {
                         if (this.isFinalInited && !ignored.has(q.substring(0, 15))) {
-                            console.log('ignored after inited: ', q.substring(0, 15));
+                            console.log('ignored after inited: ', q.substring(0, 15)); // eslint-disable-line no-console
                         }
 
                         ignored.add(q.substring(0, 15));
@@ -266,7 +225,7 @@ try {
                                     console.log('ignored: ', [...ignored].join(', ')); // eslint-disable-line no-console
                                     console.log('used: ', [...used].join(', ')); // eslint-disable-line no-console
 
-                                    this.subscribeAll();
+                                    // this.subscribeAll();
                                 }
 
                                 if (t.sec_info) {
@@ -499,11 +458,11 @@ try {
                         this.positions[p] = {};
                     }
 
-                    const positionArr = this.getWithArr(this.positions[p]);
+                    // const positionArr = this.getWithArr(this.positions[p]);
 
-                    for (const p of positionArr) {
+                    // for (const p of positionArr) {
 
-                    }
+                    // }
                 });
             } catch (e) {
                 console.log('savePositions', e); // eslint-disable-line no-console
@@ -632,7 +591,7 @@ try {
                 <transactionid>${transactionid}</transactionid>
             </command>`;
 
-            console.log('cancelOrder', this.sdk.SendCommand(command));
+            this.sdk.SendCommand(command);
         }
 
         saveQuotes(quotes) {
@@ -738,13 +697,10 @@ try {
          * @param {*} quantity
          * @param {*} buysell
          * @param {*} robotName
-         * @param {*} options
          * @returns
          */
-        async newOrder(figi, price, quantity, buysell, robotName, options) {
+        async newOrder(figi, price, quantity, buysell, robotName) {
             const { seccode, board } = this.splitFigi(figi);
-
-            console.log(figi, price, this.getPrice(price), quantity, buysell, robotName);
 
             let command = `<command id="neworder"><security>
                 <board>${board}</board>
@@ -762,8 +718,6 @@ try {
                 <unfilled>PutInQueue</unfilled>
             </command>`;
 
-            console.log(command);
-
             // <nosplit/>
             // <bymarket/>
 
@@ -778,8 +732,6 @@ try {
             // <result success="true" transactionid="id"
             const r = this.sdk.SendCommand(command);
             const { result } = JSON.parse(xml2json.toJson(r));
-
-            console.log(r, result);
 
             const transaqtionId = result.transactionid;
 
@@ -811,11 +763,11 @@ try {
                                 });
                             }
                         } catch (e) {
-                            console.log('neworderpromise', e);
+                            console.log('neworderpromise', e); // eslint-disable-line no-console
                         }
                     }, 50);
                 } catch (e) {
-                    console.log('neworderpromise', e);
+                    console.log('neworderpromise', e); // eslint-disable-line no-console
                 }
             });
         }
@@ -900,7 +852,7 @@ try {
                 <seccode>${sec.seccode}</seccode>
                 </security>
                 <period>${interval}</period>
-                <count>2000</count>
+                <count>1440</count>
                 <reset>${Boolean(isToday)}</reset>
                 </command>`;
 
@@ -937,7 +889,6 @@ try {
             const candleArr = Array.isArray(candles.candle) ? candles.candle : [candles.candle];
 
             for (const c of candleArr) {
-                // console.log(c);
                 const time = this.getCandleUnixTime(c.date || c['$'].date);
 
                 this.historyCandles[noMarketFigi][candles.period][time] = {
@@ -948,12 +899,28 @@ try {
             }
         }
 
-        getHistoryData(figi, period) {
+        async getHistoryData(figi, period) {
             const noMarketFigi = this.getNoMarketFigi(this.splitFigi(figi));
+            let time = 0;
 
-            if (this.historyCandles[noMarketFigi]) {
-                return this.historyCandles[noMarketFigi][period];
-            }
+            return new Promise(resolve => {
+                const i = setInterval(() => {
+                    if (this.historyCandles[noMarketFigi]) {
+                        clearInterval(i);
+
+                        return resolve(this.historyCandles[noMarketFigi][period]);
+                    }
+
+                    time += 100;
+
+                    // Timeout.
+                    if (time >= 60000) {
+                        clearInterval(i);
+
+                        return resolve();
+                    }
+                }, 100);
+            });
         }
 
         getClients() {
@@ -1018,7 +985,7 @@ try {
             try {
                 return obj[Object.keys(obj).find(s => this.securities[s][field] === value)];
             } catch (e) {
-                console.log('getFromObjectByField', e);
+                console.log('getFromObjectByField', e); // eslint-disable-line no-console
             }
         }
 
@@ -1159,15 +1126,9 @@ try {
 
                 const { seccode, board } = this.splitFigi(figi);
 
-                // console.log(['SBER;TQBR;1', 'GMKN;TQBR;1', 'GMKN;SPFEQ;7', 'LKOH;TQBR;1', 'PLZL;TQBR;1'].includes(figi))
-                if (this.subscribes[seccode + ' ' + board]
-                //  || !['SBER;TQBR;1' // , 'GMKN;TQBR;1', 'GMKN;SPFEQ;7', 'LKOH;TQBR;1', 'PLZL;TQBR;1'
-                // ].includes(figi)
-                ) {
+                if (this.subscribes[seccode + ' ' + board]) {
                     return;
                 }
-
-                // console.log('ok', figi);
 
                 alltrades += `<security><board>${board}</board><seccode>${seccode}</seccode></security>`;
 
@@ -1182,10 +1143,9 @@ try {
             quotations += '</quotations>';
             quotes += '</quotes>';
 
-            command += alltrades + quotations + quotes + '</command>';
+            command += alltrades + quotations + quotes + closeCommandStr;
 
-            console.log(command);
-            console.log('subscribeall', this.sdk.SendCommand(command));
+            this.sdk.SendCommand(command);
         }
 
         subscribe(figi, subscribe = 1) {
@@ -1216,7 +1176,7 @@ try {
                 </security>
                 </quotes>`;
 
-            command += '</command>';
+            command += closeCommandStr;
 
             this.subscribes[figi] = true;
             this.sdk.SendCommand(command);
@@ -1232,9 +1192,9 @@ try {
                 );
 
                 console.log('disconnect'); // eslint-disable-line no-console
-                console.trace();
+                // console.trace();
 
-                this.sdk.UnInitialize();
+                // this.sdk.UnInitialize();
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
